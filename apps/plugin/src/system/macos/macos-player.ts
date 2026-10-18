@@ -43,7 +43,7 @@ export class MacosPlayer implements Player {
 
   async play(
     audio: Audio,
-    { volume }: PlayOptions,
+    options: PlayOptions,
     signal: AbortSignal,
   ): Promise<void> {
     signal.throwIfAborted();
@@ -52,7 +52,7 @@ export class MacosPlayer implements Player {
     await writeFile(path, audio);
     try {
       signal.throwIfAborted();
-      await this.#play(path, volume, wavDuration(audio), signal);
+      await this.#play(path, wavDuration(audio), options, signal);
     } finally {
       await rm(path, { force: true });
     }
@@ -60,8 +60,8 @@ export class MacosPlayer implements Player {
 
   #play(
     path: string,
-    volume: number,
     seconds: number,
+    { volume, onStarted }: PlayOptions,
     signal: AbortSignal,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -81,6 +81,7 @@ export class MacosPlayer implements Player {
           settle();
           reject(playerError(reply.error));
         } else if (reply.started) {
+          onStarted?.();
           watchdog = setTimeout(
             () => {
               this.#engine.notify({ op: "stop", id });

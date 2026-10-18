@@ -3,12 +3,15 @@ import type { Audio } from "./provider";
 export type PlayOptions = {
   /** 0 to 1, no boost. The Player's, so it behaves the same for every Provider. */
   volume: number;
+  /** Called once, when the sound starts — not when `play` is called. */
+  onStarted?: () => void;
 };
 
 /**
  * A Player plays a Provider's audio — one per OS. `play` settles when the
  * sound has ended. Aborting `signal` stops it at once and rejects with
- * `signal.reason`; an abort is not an error.
+ * `signal.reason`; an abort is not an error. A play that fails before its
+ * sound starts never calls `onStarted`.
  */
 export interface Player {
   play(audio: Audio, options: PlayOptions, signal: AbortSignal): Promise<void>;

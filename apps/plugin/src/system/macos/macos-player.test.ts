@@ -38,10 +38,11 @@ const second = encodeWav(new Float32Array(22_050), 22_050);
 describe("MacosPlayer", () => {
   it("plays the audio from a file, and removes the file once it has ended", async () => {
     const { engine, player } = setup();
+    const onStarted = vi.fn();
 
     const played = player.play(
       second,
-      { volume: 0.4 },
+      { volume: 0.4, onStarted },
       new AbortController().signal,
     );
     const { id, message } = await requested(engine);
@@ -51,10 +52,13 @@ describe("MacosPlayer", () => {
     expect(path.startsWith(folder)).toBe(true);
     expect(new Uint8Array(readFileSync(path))).toEqual(second);
 
+    expect(onStarted).not.toHaveBeenCalled();
     engine.reply(id, { started: true });
+    expect(onStarted).toHaveBeenCalledTimes(1);
     engine.reply(id, { ended: true });
     await played;
 
+    expect(onStarted).toHaveBeenCalledTimes(1);
     expect(existsSync(path)).toBe(false);
     expect(engine.listening).toBe(0);
   });
@@ -114,6 +118,27 @@ describe("MacosPlayer", () => {
 
     expect(await outcome).toMatchObject({ kind: "transient" });
     expect(engine.notified).toEqual([{ op: "stop", id }]);
+  });
+
+  it("does not report a start for a play that fails before its sound", async () => {
+    const { engine, player } = setup();
+    const onStarted = vi.fn();
+
+    const played = player.play(
+      second,
+      { volume: 1, onStarted },
+      new AbortController().signal,
+    );
+    const { id } = await requested(engine);
+    engine.reply(id, {
+      error: {
+        kind: "unavailable",
+        reason: "The output device cannot be opened",
+      },
+    });
+
+    await expect(played).rejects.toMatchObject({ kind: "unavailable" });
+    expect(onStarted).not.toHaveBeenCalled();
   });
 
   it("does not start a play that is already aborted", async () => {

@@ -23,5 +23,29 @@
       "context": "standalone",
       "editor": "editor/speak.html"
     }
+  ],
+  "sources": [
+    {
+      "key": "speaking",
+      "name": "Speaking",
+      "type": "boolean",
+      "resolve": "query"
+    },
+    {
+      "key": "waiting",
+      "name": "Phrases Waiting",
+      "type": "number",
+      "resolve": "query"
+    }
+  ],
+  "events": [
+    {
+      "type": "phrase-started",
+      "name": "Phrase Started"
+    },
+    {
+      "type": "phrase-finished",
+      "name": "Phrase Finished"
+    }
   ]
 }
