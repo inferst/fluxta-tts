@@ -1,5 +1,6 @@
 packages:
   - apps/*
+  - packages/*
 
 allowBuilds:
   esbuild: true
@@ -24,3 +25,4 @@ catalog:
   turbo: "^2.7.3"
   typescript: "^5.9.3"
   typescript-eslint: "^8.56.1"
+  vitest: "^4.1.11"

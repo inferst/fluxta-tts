@@ -1,18 +1,21 @@
 {
   "dependencies": {
-    "@fluxta/sdk": "catalog:"
+    "@fluxta/sdk": "catalog:",
+    "tts-protocol": "workspace:*"
   },
   "devDependencies": {
-    "tts-editor": "workspace:*",
     "@types/node": "catalog:",
     "tsdown": "catalog:",
-    "typescript": "catalog:"
+    "tts-editor": "workspace:*",
+    "typescript": "catalog:",
+    "vitest": "catalog:"
   },
   "name": "tts-plugin",
   "private": true,
   "scripts": {
     "build": "tsdown",
     "dev": "tsdown --watch",
+    "test": "vitest run",
     "typecheck": "tsc --noEmit"
   },
   "type": "module",

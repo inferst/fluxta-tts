@@ -1,24 +1,27 @@
 {
   "name": "tts",
-  "title": "Tts",
+  "title": "Text to Speech",
   "description": "Reads chat and deck text aloud with this computer's voices",
   "version": "0.1.0",
   "author": "Mikhail Morozov",
   "license": "MIT",
-  "homepage": "",
-  "repository": "",
-  "maintainers": [],
-  "minAppVersion": "0.1.0",
-  "platforms": ["windows","macos"],
-  "categories": ["streaming","audio"],
+  "homepage": "https://github.com/inferst/fluxta-tts",
+  "repository": "https://github.com/inferst/fluxta-tts",
+  "maintainers": ["inferst"],
+  "minAppVersion": "0.9.0",
+  "platforms": ["windows", "macos"],
+  "categories": ["streaming", "audio"],
   "apiVersion": 1,
   "main": "index.mjs",
+  "icon": "icons/speech.svg",
+  "editorPlacement": "settings",
   "actions": [
     {
-      "context": "item",
-      "editor": "editor/index.html",
-      "name": "Hello",
-      "type": "hello"
+      "name": "Speak",
+      "type": "speak",
+      "icon": "icons/audio-lines.svg",
+      "context": "standalone",
+      "editor": "editor/speak.html"
     }
   ]
 }

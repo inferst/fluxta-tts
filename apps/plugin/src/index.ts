@@ -1,26 +1,19 @@
-import { ItemAction, ItemTriggerContext, Plugin } from "@fluxta/sdk/api";
+import { SpeakAction } from "./actions/speak";
+import { plugin } from "./plugin";
+import { describeDrop, SpeechQueue } from "./speech/speech-queue";
+import { osDefaultVoice } from "./speech/voices";
+import { systemSpeech } from "./system";
 
-/** What the generated Action Editor saves for each placement of this Action. */
-type HelloSettings = {
-  message?: string;
-};
+const { provider, player } = systemSpeech();
 
-/**
- * The sample Item Action. Its `type` matches the manifest action `type`
- * ("hello") so the host can dispatch triggers to it.
- */
-class HelloAction extends ItemAction<HelloSettings> {
-  type = "hello";
+const queue = new SpeechQueue({
+  provider,
+  player,
+  voiceFor: () => osDefaultVoice(provider),
+  // stderr lands in the plugin's log (`logs/tts.log` in its folder).
+  onDropped: (phrase, error) => console.warn(describeDrop(phrase, error)),
+});
 
-  onTrigger(ctx: ItemTriggerContext<HelloSettings>) {
-    // stdout and stderr are captured to logs/tts.log inside the
-    // plugin folder, so console is how a sidecar reports what it did.
-    console.log(
-      `item ${ctx.itemId}: ${ctx.settings.message ?? "Hello from Fluxta!"}`,
-    );
-  }
-}
+plugin.registerAction(new SpeakAction(queue));
 
-const plugin = new Plugin();
-plugin.registerAction(new HelloAction());
 await plugin.connect();
