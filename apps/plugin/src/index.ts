@@ -1,0 +1,26 @@
+import { ItemAction, ItemTriggerContext, Plugin } from "@fluxta/sdk/api";
+
+/** What the generated Action Editor saves for each placement of this Action. */
+type HelloSettings = {
+  message?: string;
+};
+
+/**
+ * The sample Item Action. Its `type` matches the manifest action `type`
+ * ("hello") so the host can dispatch triggers to it.
+ */
+class HelloAction extends ItemAction<HelloSettings> {
+  type = "hello";
+
+  onTrigger(ctx: ItemTriggerContext<HelloSettings>) {
+    // stdout and stderr are captured to logs/tts.log inside the
+    // plugin folder, so console is how a sidecar reports what it did.
+    console.log(
+      `item ${ctx.itemId}: ${ctx.settings.message ?? "Hello from Fluxta!"}`,
+    );
+  }
+}
+
+const plugin = new Plugin();
+plugin.registerAction(new HelloAction());
+await plugin.connect();

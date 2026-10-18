@@ -1,0 +1,24 @@
+{
+  "name": "tts",
+  "title": "Tts",
+  "description": "Reads chat and deck text aloud with this computer's voices",
+  "version": "0.1.0",
+  "author": "Mikhail Morozov",
+  "license": "MIT",
+  "homepage": "",
+  "repository": "",
+  "maintainers": [],
+  "minAppVersion": "0.1.0",
+  "platforms": ["windows","macos"],
+  "categories": ["streaming","audio"],
+  "apiVersion": 1,
+  "main": "index.mjs",
+  "actions": [
+    {
+      "context": "item",
+      "editor": "editor/index.html",
+      "name": "Hello",
+      "type": "hello"
+    }
+  ]
+}
