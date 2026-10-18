@@ -47,6 +47,35 @@ viewer's user id, a chat message's id. A Phrase carries any number of Tags.
 _Avoid_: Sound Tag (the host's, for Play Sound — the same idea, reaching
 sounds only), channel (implies one at a time within it).
 
+### Syncing with speech
+
+Speak returns as soon as its Phrase is queued, so a scenario that must act
+with the voice — an overlay while a Phrase is heard, a guard against a flood —
+asks the plugin, not the step.
+
+**Phrase Started**:
+The Event Source `phrase-started`: a Phrase's sound has started — not its
+synthesis — so whatever it shows lines up with the voice. It carries no
+Fields.
+
+**Phrase Finished**:
+The Event Source `phrase-finished`: a Phrase that started has ended, however
+it ended — spoken to the end, or cut off. It fires exactly once for every
+Phrase Started, so whatever a scenario shows on Started is never left stuck;
+a Phrase that never started fires neither. It carries no Fields.
+_Avoid_: Phrase Completed, Phrase Stopped (one Event for every end).
+
+**Speaking**:
+The Value Source `speaking`: whether a Phrase is being handled, from the
+moment it leaves the Speech Queue — its synthesis included — until it ends.
+
+**Phrases Waiting**:
+The Value Source `waiting`: how many Phrases wait in the Speech Queue, the
+one being spoken not counted. Like Speaking it is pulled, read as the queue
+stands when the condition runs — so `Phrases Waiting < 10 → Speak` right
+after another Speak already counts that Speak's Phrase.
+_Avoid_: Waiting alone (reads as yes or no), queue length.
+
 ### Voices
 
 **Provider**:

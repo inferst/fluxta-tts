@@ -40,6 +40,30 @@ plugin or of Fluxta drops whatever was still waiting.
 Speech plays through the plugin, not through Fluxta's own sounds: **Stop
 Sound** does not stop it.
 
+## Following the speech
+
+Speak does not wait, so a scenario that has to act with the voice asks the
+plugin instead.
+
+| Event               | When it fires                                                                 |
+| ------------------- | ----------------------------------------------------------------------------- |
+| **Phrase Started**  | A Phrase's sound starts — show an overlay in step with the voice.             |
+| **Phrase Finished** | That Phrase has ended, whether it was spoken to the end or cut off — hide it. |
+
+Every Phrase Started is followed by exactly one Phrase Finished, so an overlay
+shown on one is never left on screen. A Phrase that was never heard — its
+text was empty, its voice is missing — fires neither. Neither Event carries
+fields yet: they say that a Phrase started or ended, not which one.
+
+An **If/Else** can branch on:
+
+- **Speaking** — whether a Phrase is being spoken (or prepared) right now;
+- **Phrases Waiting** — how many Phrases wait behind it.
+
+Both read the queue as it is when the condition runs. A raid that floods the
+chat can be held back with `Phrases Waiting < 10` before Speak: the count
+already includes a Phrase a Speak queued a moment before.
+
 ## Development
 
 ```bash
