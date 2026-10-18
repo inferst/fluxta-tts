@@ -1,0 +1,168 @@
+// The macOS Player's engine: AVAudioEngine driven from a long-lived
+// `osascript -l JavaScript`. Requests arrive as JSON lines on stdin (ASCII
+// only — the sidecar escapes everything else), answers leave as JSON lines on
+// stdout; stderr is the plugin's log.
+//
+// It rests on undocumented JXA behaviour: a JS function passed where an
+// Objective-C block is expected (a player node's completion handler, the
+// notification observers) is called as that block, on this thread, when the
+// run loop below yields.
+
+ObjC.import("Foundation");
+ObjC.import("AVFoundation");
+ObjC.import("stdlib");
+
+const stdout = $.NSFileHandle.fileHandleWithStandardOutput;
+const stdin = $.NSFileHandle.fileHandleWithStandardInput;
+const center = $.NSNotificationCenter.defaultCenter;
+
+function send(message) {
+  stdout.writeData(
+    $(JSON.stringify(message) + "\n").dataUsingEncoding($.NSUTF8StringEncoding),
+  );
+}
+
+function fail(id, kind, reason) {
+  send({ id: id, error: { kind: kind, reason: reason } });
+}
+
+// An engine left running renders silence and holds the device, so it stops
+// once nothing has played for a while — as the host's own audio does.
+const IDLE_SECONDS = 10;
+
+let engine = null;
+let idleSince = Date.now();
+// Plays under way, by request id: { node, done }.
+const plays = new Map();
+// Nodes to detach once their completion handler has returned.
+const finished = [];
+
+function ensureEngine() {
+  if (engine) return engine;
+  engine = $.AVAudioEngine.alloc.init;
+  // A configuration change stops the engine by itself — the output device
+  // went away, or the default output switched — and the plays on it never
+  // report their end. A change that leaves it running is a false alarm: one
+  // arrives shortly after every first start.
+  center.addObserverForNameObjectQueueUsingBlock(
+    $.AVAudioEngineConfigurationChangeNotification,
+    engine,
+    $.NSOperationQueue.mainQueue,
+    () => {
+      if (engine.running) return;
+      plays.forEach((play, id) => {
+        end(id, play);
+        fail(id, "transient", "The output device changed while speaking");
+      });
+    },
+  );
+  return engine;
+}
+
+function play(request) {
+  const url = $.NSURL.fileURLWithPath(request.path);
+  const error = Ref();
+  const file = $.AVAudioFile.alloc.initForReadingError(url, error);
+  if (file.isNil()) {
+    fail(request.id, "unavailable", "Cannot read the synthesized audio");
+    return;
+  }
+  const output = ensureEngine();
+  const node = $.AVAudioPlayerNode.alloc.init;
+  output.attachNode(node);
+  output.connectToFormat(node, output.mainMixerNode, file.processingFormat);
+  node.volume = request.volume;
+  if (!output.running && !output.startAndReturnError($())) {
+    output.detachNode(node);
+    fail(request.id, "unavailable", "The output device cannot be opened");
+    return;
+  }
+  const entry = { node: node, done: false };
+  plays.set(request.id, entry);
+  // `nil`, not JS null, for "as soon as possible": null becomes NSNull.
+  node.scheduleFileAtTimeCompletionCallbackTypeCompletionHandler(
+    file,
+    $(),
+    $.AVAudioPlayerNodeCompletionDataPlayedBack,
+    () => {
+      // `stop` calls this too, synchronously, with the same type as a
+      // natural end — so a play that was stopped has already been answered.
+      if (entry.done) return;
+      end(request.id, entry);
+      send({ id: request.id, ended: true });
+    },
+  );
+  node.play;
+  send({ id: request.id, started: true });
+}
+
+function end(id, entry) {
+  entry.done = true;
+  plays.delete(id);
+  finished.push(entry.node);
+  if (plays.size === 0) idleSince = Date.now();
+}
+
+function stop(id) {
+  const entry = plays.get(id);
+  if (!entry) return;
+  end(id, entry);
+  entry.node.stop;
+  send({ id: id, stopped: true });
+}
+
+function handle(line) {
+  let request;
+  try {
+    request = JSON.parse(line);
+  } catch (error) {
+    console.log("player: not a request: " + line);
+    return;
+  }
+  try {
+    if (request.op === "play") play(request);
+    else if (request.op === "stop") stop(request.id);
+    else fail(request.id, "unavailable", "Unknown request " + request.op);
+  } catch (error) {
+    fail(request.id, "unavailable", String(error));
+  }
+}
+
+let pending = "";
+center.addObserverForNameObjectQueueUsingBlock(
+  $.NSFileHandleReadCompletionNotification,
+  stdin,
+  $.NSOperationQueue.mainQueue,
+  (notification) => {
+    const data = notification.userInfo.objectForKey(
+      $.NSFileHandleNotificationDataItem,
+    );
+    // End of input: the sidecar has gone, and so does this process.
+    if (Number(data.length) === 0) $.exit(0);
+    pending += $.NSString.alloc.initWithDataEncoding(data, $.NSUTF8StringEncoding).js;
+    let newline;
+    while ((newline = pending.indexOf("\n")) !== -1) {
+      const line = pending.slice(0, newline);
+      pending = pending.slice(newline + 1);
+      if (line.trim()) handle(line);
+    }
+    stdin.readInBackgroundAndNotify;
+  },
+);
+stdin.readInBackgroundAndNotify;
+send({ ready: true });
+
+// Completion handlers run only when this loop yields, so it yields often
+// while something plays — or an end arrives late — and rarely when idle.
+while (true) {
+  const slice = plays.size > 0 ? 0.005 : 1;
+  $.NSRunLoop.currentRunLoop.runModeBeforeDate(
+    $.NSDefaultRunLoopMode,
+    $.NSDate.dateWithTimeIntervalSinceNow(slice),
+  );
+  while (finished.length > 0) engine.detachNode(finished.pop());
+  if (engine && engine.running && plays.size === 0 &&
+      Date.now() - idleSince > IDLE_SECONDS * 1000) {
+    engine.stop;
+  }
+}

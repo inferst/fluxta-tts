@@ -1,0 +1,88 @@
+name: Release
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - manifest.json
+  workflow_dispatch:
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Tag, build and draft release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Read version from manifest
+        id: version
+        run: |
+          VERSION="$(jq -r .version manifest.json)"
+          echo "tag=v${VERSION}" >> "$GITHUB_OUTPUT"
+
+      - name: Check if tag already exists
+        id: tag_exists
+        run: |
+          if git ls-remote --tags origin "refs/tags/${{ steps.version.outputs.tag }}" | grep -q .; then
+            echo "exists=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "exists=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Set up pnpm
+        if: steps.tag_exists.outputs.exists == 'false'
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node.js
+        if: steps.tag_exists.outputs.exists == 'false'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+          cache-dependency-path: pnpm-lock.yaml
+
+      - name: Install dependencies
+        if: steps.tag_exists.outputs.exists == 'false'
+        run: pnpm install --frozen-lockfile
+
+      - name: Build plugin
+        if: steps.tag_exists.outputs.exists == 'false'
+        run: pnpm build
+
+      - name: Package plugin
+        if: steps.tag_exists.outputs.exists == 'false'
+        id: package
+        run: |
+          NAME="$(jq -r .name manifest.json)"
+          VERSION="$(jq -r .version manifest.json)"
+          ARCHIVE="${NAME}-${VERSION}.zip"
+          pnpm exec fluxta package --out "$ARCHIVE"
+          echo "archive=$ARCHIVE" >> "$GITHUB_OUTPUT"
+
+      - name: Create and push tag
+        if: steps.tag_exists.outputs.exists == 'false'
+        run: |
+          git tag "${{ steps.version.outputs.tag }}"
+          git push origin "${{ steps.version.outputs.tag }}"
+
+      - name: Create draft GitHub release
+        if: steps.tag_exists.outputs.exists == 'false'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          TITLE="$(jq -r .title manifest.json)"
+          gh release create "${{ steps.version.outputs.tag }}" \
+            "${{ steps.package.outputs.archive }}" \
+            --draft \
+            --generate-notes \
+            --title "${TITLE} ${{ steps.version.outputs.tag }}"
