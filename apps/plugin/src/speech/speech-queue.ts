@@ -5,7 +5,19 @@ import { ProviderError, type Provider } from "./provider";
 export type Phrase = {
   /** What it says, after interpolation. */
   text: string;
+  /**
+   * What Stop Speech can address it by, compared exactly. Never empty
+   * strings: a Tag nothing can address is discarded before it gets here.
+   */
+  tags: readonly string[];
 };
+
+/**
+ * Where a Phrase goes: **In turn** to the end of the queue, **Next** ahead of
+ * every In turn Phrase but behind the other Next ones, **Now** in place of
+ * the current Phrase, which it cuts off.
+ */
+export type Position = "in-turn" | "next" | "now";
 
 export type SpeechQueueOptions = {
   provider: Provider;
@@ -18,9 +30,9 @@ export type SpeechQueueOptions = {
   onStarted: (phrase: Phrase) => void;
   /**
    * A Phrase that started has ended, however it ended — spoken to the end,
-   * or cut off by the Player failing. Called exactly once for every
-   * `onStarted`, so whatever a scenario shows on Phrase Started is never
-   * left stuck.
+   * cut off by Stop Speech or a Now, or by the Player failing. Called exactly
+   * once for every `onStarted`, so whatever a scenario shows on Phrase
+   * Started is never left stuck.
    */
   onFinished: (phrase: Phrase) => void;
 };
@@ -29,33 +41,78 @@ export type SpeechQueueOptions = {
 const RATE = 1;
 const VOLUME = 1;
 
+/** The Phrase being handled: synthesized, then played. */
+type Current = {
+  phrase: Phrase;
+  abort: AbortController;
+  /** Once its Phrase Finished, if any, has gone out. Never rejects. */
+  settled: Promise<void>;
+};
+
 /**
  * The plugin's single Speech Queue: Phrases are spoken strictly one at a
- * time, in the order they arrived, whatever started them.
+ * time, in the order their Position gives them, whatever started them.
  *
  * The queue owns the order, not the host. Speak only enqueues and returns,
  * so the 30-second action timeout never cuts a Phrase short, and a burst of
  * chat messages from an Event whose runs execute in parallel still waits its
- * turn. It lives in memory: a restart loses whatever was waiting.
+ * turn. Urgency lives here for the same reason: a Now takes the current
+ * Phrase's place within the Speak that asked for it — "skip, then Speak" as
+ * two Actions would let the queue start its next Phrase in between. It lives
+ * in memory: a restart loses whatever was waiting.
  */
 export class SpeechQueue {
   readonly #options: SpeechQueueOptions;
-  readonly #waiting: Phrase[] = [];
-  #current?: { phrase: Phrase; abort: AbortController };
+  /** Next Phrases, in the order they arrived. */
+  #ahead: Phrase[] = [];
+  /** In turn Phrases, in the order they arrived. */
+  #inTurn: Phrase[] = [];
+  #current?: Current;
 
   constructor(options: SpeechQueueOptions) {
     this.#options = options;
   }
 
-  /** Accepts a Phrase at the end of the queue, without waiting for it. */
-  enqueue(phrase: Phrase): void {
-    this.#waiting.push(phrase);
-    this.#next();
+  /** Accepts a Phrase where its Position puts it, without waiting for it. */
+  enqueue(phrase: Phrase, position: Position = "in-turn"): void {
+    if (position === "now") {
+      const cutOff = this.#current;
+      cutOff?.abort.abort();
+      this.#start(phrase, cutOff?.settled);
+      return;
+    }
+    (position === "next" ? this.#ahead : this.#inTurn).push(phrase);
+    this.#advance();
+  }
+
+  /** Cuts off the current Phrase; the queue goes on with the next one. */
+  stopCurrent(): void {
+    this.#current?.abort.abort();
+  }
+
+  /** Cuts off the current Phrase and empties the queue, Next included. */
+  stopEverything(): void {
+    this.#ahead = [];
+    this.#inTurn = [];
+    this.#current?.abort.abort();
+  }
+
+  /**
+   * Takes every waiting Phrase carrying `tag` out of the queue, and cuts off
+   * the current one if it carries it too.
+   */
+  stopTagged(tag: string): void {
+    const untagged = (phrase: Phrase) => !phrase.tags.includes(tag);
+    this.#ahead = this.#ahead.filter(untagged);
+    this.#inTurn = this.#inTurn.filter(untagged);
+    if (this.#current && !untagged(this.#current.phrase)) {
+      this.#current.abort.abort();
+    }
   }
 
   /** How many Phrases wait — the one being spoken not counted. */
   get waiting(): number {
-    return this.#waiting.length;
+    return this.#ahead.length + this.#inTurn.length;
   }
 
   /**
@@ -66,40 +123,57 @@ export class SpeechQueue {
     return this.#current !== undefined;
   }
 
-  #next(): void {
+  #advance(): void {
     if (this.#current) {
       return;
     }
-    const phrase = this.#waiting.shift();
-    if (!phrase) {
-      return;
+    const phrase = this.#ahead.shift() ?? this.#inTurn.shift();
+    if (phrase) {
+      this.#start(phrase);
     }
-    const current = { phrase, abort: new AbortController() };
+  }
+
+  /**
+   * Makes `phrase` the current Phrase at once. A Now passes the Phrase it cut
+   * off as `after`: it is spoken only once that one has ended, so the Phrase
+   * Finished of the one goes out before the Phrase Started of the other.
+   */
+  #start(phrase: Phrase, after?: Promise<void>): void {
+    const abort = new AbortController();
+    const current: Current = {
+      phrase,
+      abort,
+      settled: this.#speak(phrase, abort.signal, after),
+    };
     this.#current = current;
-    void this.#speak(current).finally(() => {
-      this.#current = undefined;
-      this.#next();
+    void current.settled.then(() => {
+      // A Now that took its place is the current Phrase already.
+      if (this.#current === current) {
+        this.#current = undefined;
+        this.#advance();
+      }
     });
   }
 
-  async #speak({
-    phrase,
-    abort,
-  }: {
-    phrase: Phrase;
-    abort: AbortController;
-  }): Promise<void> {
+  async #speak(
+    phrase: Phrase,
+    signal: AbortSignal,
+    after?: Promise<void>,
+  ): Promise<void> {
     const { provider, player, voiceFor, onDropped, onStarted, onFinished } =
       this.#options;
     let started = false;
     let ended = false;
     try {
+      await after;
+      signal.throwIfAborted();
       const voice = await voiceFor(phrase);
+      signal.throwIfAborted();
       const audio = await provider.synthesize(
         phrase.text,
         voice,
         { rate: RATE },
-        abort.signal,
+        signal,
       );
       await player.play(
         audio,
@@ -115,11 +189,11 @@ export class SpeechQueue {
             notify(() => onStarted(phrase));
           },
         },
-        abort.signal,
+        signal,
       );
     } catch (error) {
       // A stopped Phrase was not dropped: someone asked for it.
-      if (!abort.signal.aborted) {
+      if (!signal.aborted) {
         notify(() => onDropped(phrase, error));
       }
     } finally {

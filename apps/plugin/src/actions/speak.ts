@@ -4,11 +4,13 @@ import {
 } from "@fluxta/sdk/api";
 import type { SpeakSettings } from "tts-protocol";
 
-import type { SpeechQueue } from "../speech/speech-queue";
+import type { Position, SpeechQueue } from "../speech/speech-queue";
+import { tagsOf, textOf } from "./values";
 
 /**
- * Speak: puts its Phrase into the Speech Queue and returns at once. It never
- * waits for the Phrase to be spoken — the run that triggered it moves on.
+ * Speak: puts its Phrase into the Speech Queue where its Position says, and
+ * returns at once. It never waits for the Phrase to be spoken — the run that
+ * triggered it moves on.
  */
 export class SpeakAction extends StandaloneAction<SpeakSettings> {
   readonly type = "speak";
@@ -20,18 +22,14 @@ export class SpeakAction extends StandaloneAction<SpeakSettings> {
   }
 
   onTrigger({ settings }: StandaloneTriggerContext<SpeakSettings>): void {
-    this.#queue.enqueue({ text: textOf(settings?.text) });
+    this.#queue.enqueue(
+      { text: textOf(settings?.text), tags: tagsOf(settings?.tags) },
+      positionOf(settings?.position),
+    );
   }
 }
 
-/**
- * The text as Fluxta interpolated it. A lone `{{…}}` reference keeps its
- * value's type, so a number or a boolean arrives as itself.
- */
-function textOf(value: unknown): string {
-  return typeof value === "string" ||
-    typeof value === "number" ||
-    typeof value === "boolean"
-    ? String(value)
-    : "";
+/** In turn unless the Speak asks for more: urgency is never assumed. */
+function positionOf(value: unknown): Position {
+  return value === "next" || value === "now" ? value : "in-turn";
 }
