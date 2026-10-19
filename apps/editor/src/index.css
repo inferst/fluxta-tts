@@ -30,3 +30,22 @@
 .tags > button {
   align-self: flex-start;
 }
+
+/* A line of explanation where no field's hint can hold it. */
+.hint {
+  margin: 0;
+  color: var(--muted-foreground);
+  font-size: 0.75rem;
+  line-height: 1.6;
+}
+
+/* Speak's Override defaults: the toggle, then its fields, spaced alike. */
+.overrides {
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+}
+
+.overrides > button {
+  align-self: flex-start;
+}

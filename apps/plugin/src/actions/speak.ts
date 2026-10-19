@@ -2,10 +2,19 @@ import {
   StandaloneAction,
   type StandaloneTriggerContext,
 } from "@fluxta/sdk/api";
-import type { SpeakSettings } from "tts-protocol";
+import type { Defaults, SpeakSettings } from "tts-protocol";
 
+import { effectiveSettings } from "../settings/defaults";
 import type { Position, SpeechQueue } from "../speech/speech-queue";
+import { truncate } from "../speech/truncate";
 import { tagsOf, textOf } from "./values";
+
+/** The defaults in Plugin Settings, as Speak reads them. */
+export interface DefaultsSource {
+  /** Settles once the saved defaults have been read. */
+  readonly loaded: Promise<void>;
+  readonly current: Defaults;
+}
 
 /**
  * Speak: puts its Phrase into the Speech Queue where its Position says, and
@@ -15,15 +24,32 @@ import { tagsOf, textOf } from "./values";
 export class SpeakAction extends StandaloneAction<SpeakSettings> {
   readonly type = "speak";
   readonly #queue: SpeechQueue;
+  readonly #defaults: DefaultsSource;
 
-  constructor(queue: SpeechQueue) {
+  constructor(queue: SpeechQueue, defaults: DefaultsSource) {
     super();
     this.#queue = queue;
+    this.#defaults = defaults;
   }
 
-  onTrigger({ settings }: StandaloneTriggerContext<SpeakSettings>): void {
+  async onTrigger({
+    settings,
+  }: StandaloneTriggerContext<SpeakSettings>): Promise<void> {
+    await this.#defaults.loaded;
+    // Read now, not when the Phrase's turn comes: the Phrase is spoken as
+    // the defaults stood when the Speak ran.
+    const { voice, rate, volume, lengthLimit } = effectiveSettings(
+      this.#defaults.current,
+      settings,
+    );
     this.#queue.enqueue(
-      { text: textOf(settings?.text), tags: tagsOf(settings?.tags) },
+      {
+        text: truncate(textOf(settings?.text), lengthLimit),
+        tags: tagsOf(settings?.tags),
+        ...(voice !== undefined && { voice }),
+        rate,
+        volume: volume / 100,
+      },
       positionOf(settings?.position),
     );
   }

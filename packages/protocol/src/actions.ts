@@ -11,11 +11,22 @@ export type Position = "in-turn" | "next" | "now";
  * interpolates them before the sidecar sees them — a lone reference keeps
  * its value's type, so what arrives can be a number or a boolean as well as
  * text.
+ *
+ * The rest override the Plugin Settings defaults; an absent one follows its
+ * default. None of them takes a template.
  */
 export type SpeakSettings = {
   text?: string;
   position?: Position;
   tags?: string[];
+  /** A Voice's id. */
+  voice?: string;
+  /** A multiplier, 0.5–2. */
+  rate?: number;
+  /** 0–100 %. */
+  volume?: number;
+  /** The most graphemes the Phrase keeps. */
+  lengthLimit?: number;
 };
 
 /**
