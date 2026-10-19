@@ -61,8 +61,10 @@ Editor-only rebuilds restart nothing — reopen the editor in Fluxta to see them
 ### Plugin sidecar (`apps/plugin/src`)
 
 ```
-index.ts              composition root: the system Provider and Player, the Speech Queue, the Actions
+index.ts              composition root: the system Provider and Player, the Speech Queue, the Actions, Sources and Events
 plugin.ts             the single `Plugin` instance from @fluxta/sdk/api
+events.ts             the Event Sources' kinds: `phrase-started`, `phrase-finished`
+manifest.test.ts      the manifest declares exactly what the sidecar registers and emits
 speech/
   provider.ts         the Provider seam: Voice, Audio (WAV), ProviderError and its kinds
   player.ts           the Player seam: PlayerError and its kinds
@@ -79,9 +81,10 @@ system/
     macos-provider.ts the macOS `system` Provider over synthesizer.jxa
     macos-player.ts   the macOS Player over player.jxa
 actions/              one StandaloneAction per manifest Action, file named after its `type`
+sources/              the Query Sources `speaking` and `waiting`, read off the Speech Queue
 ```
 
-A Speak becomes a Phrase in the Speech Queue; when its turn comes, the queue asks for its Voice, has the Provider synthesize it, and hands the WAV to the Player. Neither the Provider nor the Player knows about the queue, and the queue knows nothing of an OS.
+A Speak becomes a Phrase in the Speech Queue; when its turn comes, the queue asks for its Voice, has the Provider synthesize it, and hands the WAV to the Player. The Player reports when the sound starts (`onStarted`), and the queue announces Phrase Started then and Phrase Finished when the play settles. Neither the Provider nor the Player knows about the queue, and the queue knows nothing of an OS — nor of Fluxta: `index.ts` turns its listeners into `emitEvent` calls.
 
 ### Editors (`apps/editor`)
 
@@ -91,8 +94,10 @@ A Speak becomes a Phrase in the Speech Queue; when its turn comes, the queue ask
 ## Key Conventions
 
 - **Manifest and code change together.** `manifest.json` declares every Action, and the code registers exactly those, by the same `type`. Adding an Action means: its manifest entry, `apps/plugin/src/actions/<type>.ts` with tests, its registration in `index.ts`, its settings type in `tts-protocol`, an Action Editor page and an icon in `icons/` ([lucide-static](https://lucide.dev), `stroke="white"`).
-- **Naming in the manifest** ([manifest reference](https://fluxta.app/docs/plugins/reference/manifest)): every kind — an Action or Event `type` — is kebab-case (`speak`, `stop-speech`, `phrase-started`); every key — a Source, a param, an Event Field, an Options Source — is camelCase (`speaking`, `waiting`).
+- **Naming in the manifest** ([manifest reference](https://fluxta.app/docs/plugins/reference/manifest)): every kind — an Action or Event `type` — is kebab-case (`speak`, `stop-speech`, `phrase-started`); every key — a Source, a param, an Event Field, an Options Source — is camelCase (`speaking`, `waiting`). Fluxta drops an Event, a Source or a payload key the manifest does not declare without a word, so `manifest.test.ts` checks both sides.
 - **The plugin owns the order of speech.** Speak never waits for its Phrase: it enqueues and returns, so the run moves on and the host's 30-second action timeout never cuts a Phrase short. There is one Speech Queue for the whole plugin.
+- **Every Phrase Started is followed by exactly one Phrase Finished**, however the Phrase ended — the Player failing mid-phrase included. A Phrase that never started (its synthesis failed, the Player failed before any sound) fires neither. The queue enforces it: it starts a Phrase at most once, whatever the Player reports, and runs every listener so that one that throws cannot stop the queue.
+- **Speaking and Phrases Waiting are pulled** (`resolve: "query"`) and read the queue as it stands: a pushed value read right after a Speak would depend on whether the push had arrived.
 - **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is a `console.warn` line (`describeDrop`): the kind, the reason, the beginning of the text. A stopped Phrase is not a drop.
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.
 - **No binary in the package.** The macOS engines are JXA scripts, run by the `osascript` every Mac ships. They are `.jxa` files bundled as strings (`jxa-text.ts`, for tsdown and vitest alike) and passed to `osascript -e` — nothing beside `index.mjs` to find at run time. They are not linted or formatted.

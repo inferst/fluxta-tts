@@ -93,6 +93,9 @@ function play(request) {
     },
   );
   node.play;
+  // The node renders from now on: the first samples reach the device some
+  // 40 ms later, which is as close to "the sound starts" as AVAudioEngine
+  // tells without polling.
   send({ id: request.id, started: true });
 }
 

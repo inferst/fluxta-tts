@@ -14,6 +14,15 @@ export type SpeechQueueOptions = {
   voiceFor: (phrase: Phrase) => Promise<string>;
   /** A Phrase that could not be spoken, and why. The queue moves on. */
   onDropped: (phrase: Phrase, error: unknown) => void;
+  /** A Phrase's sound has started. */
+  onStarted: (phrase: Phrase) => void;
+  /**
+   * A Phrase that started has ended, however it ended — spoken to the end,
+   * or cut off by the Player failing. Called exactly once for every
+   * `onStarted`, so whatever a scenario shows on Phrase Started is never
+   * left stuck.
+   */
+  onFinished: (phrase: Phrase) => void;
 };
 
 /** The voice's normal pace and full volume. */
@@ -80,7 +89,10 @@ export class SpeechQueue {
     phrase: Phrase;
     abort: AbortController;
   }): Promise<void> {
-    const { provider, player, voiceFor, onDropped } = this.#options;
+    const { provider, player, voiceFor, onDropped, onStarted, onFinished } =
+      this.#options;
+    let started = false;
+    let ended = false;
     try {
       const voice = await voiceFor(phrase);
       const audio = await provider.synthesize(
@@ -89,13 +101,46 @@ export class SpeechQueue {
         { rate: RATE },
         abort.signal,
       );
-      await player.play(audio, { volume: VOLUME }, abort.signal);
+      await player.play(
+        audio,
+        {
+          volume: VOLUME,
+          // Once, and never after the play has settled — whatever the
+          // Player does, a Phrase starts at most once.
+          onStarted: () => {
+            if (started || ended) {
+              return;
+            }
+            started = true;
+            notify(() => onStarted(phrase));
+          },
+        },
+        abort.signal,
+      );
     } catch (error) {
       // A stopped Phrase was not dropped: someone asked for it.
       if (!abort.signal.aborted) {
-        onDropped(phrase, error);
+        notify(() => onDropped(phrase, error));
+      }
+    } finally {
+      ended = true;
+      if (started) {
+        notify(() => onFinished(phrase));
       }
     }
+  }
+}
+
+/**
+ * Runs a listener without letting it break the queue: a Player calls back
+ * from wherever its sound is reported, and the queue must go on whatever a
+ * listener does.
+ */
+function notify(listener: () => void): void {
+  try {
+    listener();
+  } catch (error) {
+    console.error("A Speech Queue listener failed:", error);
   }
 }
 

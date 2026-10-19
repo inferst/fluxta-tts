@@ -52,10 +52,17 @@ describe.runIf(process.platform === "darwin")("macOS engines", () => {
       signal(),
     );
 
-    const started = Date.now();
-    await player.play(audio, { volume: 0 }, signal());
+    const requested = Date.now();
+    let started = 0;
+    await player.play(
+      audio,
+      { volume: 0, onStarted: () => (started = Date.now()) },
+      signal(),
+    );
+    const ended = Date.now();
 
-    expect(Date.now() - started).toBeGreaterThanOrEqual(
+    expect(started).toBeGreaterThanOrEqual(requested);
+    expect(ended - started).toBeGreaterThanOrEqual(
       wavDuration(audio) * 1000 - 50,
     );
   });
