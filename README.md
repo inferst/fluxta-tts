@@ -28,10 +28,9 @@ instead of talking over itself. Speak returns as soon as its Phrase is
 queued, so the steps after it run at once, and a long Phrase is never cut
 short by Fluxta's step timeout.
 
-A Phrase is spoken in the voice macOS speaks with by default — the voice for
-the system language — at its normal pace and full volume, on the system's
-default output device. Choosing a voice, a pace, a volume and a device comes
-next.
+A Phrase is spoken as **Settings → Text to Speech** says — see
+[Defaults](#defaults) — on the system's default output device. Choosing the
+device comes next.
 
 A Phrase that cannot be spoken — its text comes out empty, the voice is
 missing — is dropped, and the queue moves on. Each one is written to the
@@ -84,6 +83,29 @@ number and the same number as text are one Tag. A Tag that comes out empty is
 left off the Phrase — and **Stop Speech with an empty Tag stops nothing**, so
 an Event that misses its id never wipes the whole queue. Everything happens
 only when you choose it.
+
+## Defaults
+
+**Settings → Text to Speech** holds how every Speak speaks unless it says
+otherwise:
+
+| Setting           | What it is                                                                                                    | At first                            |
+| ----------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
+| **Default Voice** | Every voice on this computer, by language, then name — with its quality (Enhanced, Premium) where it has one. | The voice macOS speaks with         |
+| **Rate**          | 0.5× to 2.0×; 1.0× is the voice's normal pace.                                                                | 1.0×                                |
+| **Volume**        | 0–100 %, no boost.                                                                                            | 100 %                               |
+| **Length limit**  | Longer text is cut at the last word within this many characters, and the rest is not spoken. Empty: no limit. | 200 — about 12–15 seconds of speech |
+
+So a fresh install speaks without the settings ever being opened, and a
+change there applies to the next Speak — nothing restarts. The length limit
+counts characters as a reader sees them: an emoji or an accented letter is
+one, and is never split.
+
+A Speak can override any of them under **Override defaults** — a louder voice
+for a Redemption, a longer limit for paid TTS. Each field starts at
+**Default**, which follows the settings; on another computer a Speak left at
+Default speaks with that computer's Default Voice. A Speak that names a voice
+this computer does not have shows it as _not available right now_.
 
 ## Following the speech
 

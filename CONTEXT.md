@@ -114,8 +114,35 @@ _Avoid_: speaker, narrator.
 
 **Default Voice**:
 The Voice a Speak uses unless it names one: chosen in Plugin settings, and
-initially the voice the OS speaks with.
+initially the voice the OS speaks with. One level only — "Default" on Speak
+means the Default Voice, and there is no "System voice" entry that follows
+the OS.
 _Avoid_: system voice (that is only its initial value).
+
+### Defaults
+
+**Defaults**:
+How every Speak speaks unless it overrides it, in Plugin settings: the
+Default Voice, the rate (a multiplier, 0.5×–2×), the volume (0–100 %, the
+Player's) and the Length Limit. A fresh install speaks with their initial
+values — the OS's voice, 1.0×, 100 %, 200 — without the Plugin Editor ever
+being opened. A Speak reads them when it runs, so a change applies to the
+next Speak.
+
+**Override**:
+A Speak's own value for one of the Defaults. Each is either **Default**,
+which follows Plugin settings, or its own value, and all start at Default —
+so a shared scenario speaks with the Defaults of whatever computer runs it.
+Text, Position and Tags are not Overrides: they describe the Phrase, and
+have no default.
+
+**Length Limit**:
+The most graphemes a Phrase keeps, counted after interpolation: longer text
+is cut at the last word boundary within it and the rest is not spoken, so no
+emoji or accented letter is split and no word is heard half-said. A Length
+Limit can be off — no limit. An engine's own limit is not this: it stays the
+Provider's `rejected`.
+_Avoid_: character limit, max length (it counts graphemes, not characters).
 
 ### Playback
 
