@@ -10,9 +10,10 @@ dropped there with the reason in the plugin's log.
 
 ## Speak
 
-| Action    | What it does                                                                                    |
-| --------- | ----------------------------------------------------------------------------------------------- |
-| **Speak** | Reads its **Text** aloud — once the Phrases before it have been spoken. The step does not wait. |
+| Action          | What it does                                                                                           |
+| --------------- | ------------------------------------------------------------------------------------------------------ |
+| **Speak**       | Reads its **Text** aloud, in the place its **Position** gives it in the queue. The step does not wait. |
+| **Stop Speech** | Ends Phrases early: the one being spoken, every one, or every one carrying a **Tag**.                  |
 
 **Text** can hold variables, so an Event can read what triggered it — for
 example the message of the Platforms plugin's **Twitch Chat Message**:
@@ -22,10 +23,10 @@ example the message of the Platforms plugin's **Twitch Chat Message**:
 ```
 
 Every Speak becomes a **Phrase** in the plugin's single **Speech Queue**.
-Phrases are spoken one at a time, in the order they arrived, whatever started
-them — a burst of chat messages waits its turn instead of talking over itself.
-Speak returns as soon as its Phrase is queued, so the steps after it run at
-once, and a long Phrase is never cut short by Fluxta's step timeout.
+Phrases are spoken one at a time — a burst of chat messages waits its turn
+instead of talking over itself. Speak returns as soon as its Phrase is
+queued, so the steps after it run at once, and a long Phrase is never cut
+short by Fluxta's step timeout.
 
 A Phrase is spoken in the voice macOS speaks with by default — the voice for
 the system language — at its normal pace and full volume, on the system's
@@ -38,7 +39,51 @@ plugin's log, with the reason and the beginning of its text. A restart of the
 plugin or of Fluxta drops whatever was still waiting.
 
 Speech plays through the plugin, not through Fluxta's own sounds: **Stop
-Sound** does not stop it.
+Sound** does not stop it — **Stop Speech** does.
+
+### Position
+
+| Position    | Where the Phrase goes                                                                              |
+| ----------- | -------------------------------------------------------------------------------------------------- |
+| **In turn** | To the end of the queue. The default.                                                              |
+| **Next**    | Ahead of every In turn Phrase, behind other Next ones — a paid Redemption goes before chat.        |
+| **Now**     | Cuts off the Phrase being spoken and is spoken at once — a deck "BRB". The queue goes on after it. |
+
+A Phrase a Now cuts off is not repeated. A Now cuts off another Now too.
+The cut-in happens inside the one Speak, so nothing else starts in between —
+unlike a Stop Speech followed by a Speak.
+
+### Tags and Stop Speech
+
+**Tags** label a Phrase so that **Stop Speech** can find it later — say the
+viewer's id and the message's id:
+
+```
+{{platforms.twitch-chat-message.userId}}
+{{platforms.twitch-chat-message.messageId}}
+```
+
+Stop Speech reaches one of:
+
+- **Current Phrase** — cuts off the Phrase being spoken; the queue goes on;
+- **Everything** — cuts it off and empties the queue, Next Phrases included;
+- **Tag** — takes every waiting Phrase carrying the Tag out of the queue, and
+  cuts off the one being spoken if it carries it too.
+
+So moderation reaches the speech as well as the chat:
+
+| Event                      | Stop Speech                                          |
+| -------------------------- | ---------------------------------------------------- |
+| **Twitch User Banned**     | Tag `{{platforms.twitch-user-banned.userId}}`        |
+| **Twitch User Timed Out**  | Tag `{{platforms.twitch-user-timed-out.userId}}`     |
+| **Twitch Message Deleted** | Tag `{{platforms.twitch-message-deleted.messageId}}` |
+| **Twitch Chat Cleared**    | Everything                                           |
+
+Tags are compared exactly, case included, without the spaces around them; a
+number and the same number as text are one Tag. A Tag that comes out empty is
+left off the Phrase — and **Stop Speech with an empty Tag stops nothing**, so
+an Event that misses its id never wipes the whole queue. Everything happens
+only when you choose it.
 
 ## Following the speech
 
@@ -51,8 +96,9 @@ plugin instead.
 | **Phrase Finished** | That Phrase has ended, whether it was spoken to the end or cut off — hide it. |
 
 Every Phrase Started is followed by exactly one Phrase Finished, so an overlay
-shown on one is never left on screen. A Phrase that was never heard — its
-text was empty, its voice is missing — fires neither. Neither Event carries
+shown on one is never left on screen — a Phrase cut off by Stop Speech or by
+a Now included. A Phrase that was never heard — stopped while it waited, its
+text empty, its voice missing — fires neither. Neither Event carries
 fields yet: they say that a Phrase started or ended, not which one.
 
 An **If/Else** can branch on:

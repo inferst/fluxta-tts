@@ -1,4 +1,5 @@
 import { SpeakAction } from "./actions/speak";
+import { StopSpeechAction } from "./actions/stop-speech";
 import { PHRASE_FINISHED_EVENT, PHRASE_STARTED_EVENT } from "./events";
 import { plugin } from "./plugin";
 import { createSpeakingSource } from "./sources/speaking";
@@ -20,6 +21,7 @@ const queue = new SpeechQueue({
 });
 
 plugin.registerAction(new SpeakAction(queue));
+plugin.registerAction(new StopSpeechAction(queue));
 plugin.registerSource(createSpeakingSource(queue));
 plugin.registerSource(createWaitingSource(queue));
 

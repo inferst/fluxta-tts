@@ -39,13 +39,29 @@ not speech).
 Where Speak puts its Phrase: **In turn** (the end of the queue, the
 default), **Next** (ahead of every In turn Phrase, behind other Next ones,
 without cutting off the current Phrase) or **Now** (cuts off the current
-Phrase and is spoken at once).
+Phrase, which is not repeated, and is spoken at once — a Now cuts off another
+Now too). A Now takes the current Phrase's place within its own Speak, so
+nothing else can start in between.
 
 **Tag**:
 A label Speak attaches to its Phrase so Stop Speech can address it — a
 viewer's user id, a chat message's id. A Phrase carries any number of Tags.
+Tags compare as text, exactly — case included — without the whitespace
+around them; a number from a lone reference becomes its string, so `123`
+and `"123"` are one Tag. A Tag that comes out empty is discarded: nothing
+could address it.
 _Avoid_: Sound Tag (the host's, for Play Sound — the same idea, reaching
 sounds only), channel (implies one at a time within it).
+
+**Stop Speech**:
+The Action that ends Phrases early, in one of three reaches: the **Current
+Phrase** (cut off; the queue goes on), **Everything** (the current Phrase and
+every waiting one, Next included) or a **Tag** (every waiting Phrase carrying
+it, and the current one if it carries it). An empty Tag stops nothing — an
+absent reference resolves to `""`, and that must not wipe the queue. A
+stopped Phrase is not dropped: someone asked for it. One stopped while
+waiting is simply gone; one cut off while heard fires its Phrase Finished.
+_Avoid_: skip (only the Current Phrase reach), clear.
 
 ### Syncing with speech
 
@@ -60,7 +76,8 @@ Fields.
 
 **Phrase Finished**:
 The Event Source `phrase-finished`: a Phrase that started has ended, however
-it ended — spoken to the end, or cut off. It fires exactly once for every
+it ended — spoken to the end, or cut off by Stop Speech, a Now or the Player
+failing. It fires exactly once for every
 Phrase Started, so whatever a scenario shows on Started is never left stuck;
 a Phrase that never started fires neither. It carries no Fields.
 _Avoid_: Phrase Completed, Phrase Stopped (one Event for every end).

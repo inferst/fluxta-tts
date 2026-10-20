@@ -22,6 +22,13 @@
       "icon": "icons/audio-lines.svg",
       "context": "standalone",
       "editor": "editor/speak.html"
+    },
+    {
+      "name": "Stop Speech",
+      "type": "stop-speech",
+      "icon": "icons/volume-off.svg",
+      "context": "standalone",
+      "editor": "editor/stop-speech.html"
     }
   ],
   "sources": [

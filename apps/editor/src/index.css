@@ -8,3 +8,25 @@
  * registers Fluxta's colours with your own Tailwind build.
  */
 @import "@fluxta/sdk/ui/styles.css";
+
+/* Speak's Tags: one field and its Remove button per line. */
+.tags {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.tag {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.tag > :first-child {
+  flex: 1;
+  min-width: 0;
+}
+
+.tags > button {
+  align-self: flex-start;
+}

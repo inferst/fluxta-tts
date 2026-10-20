@@ -3,6 +3,7 @@ import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 
 import { SpeakAction } from "./actions/speak";
+import { StopSpeechAction } from "./actions/stop-speech";
 import { PHRASE_FINISHED_EVENT, PHRASE_STARTED_EVENT } from "./events";
 import { SPEAKING_SOURCE } from "./sources/speaking";
 import { WAITING_SOURCE } from "./sources/waiting";
@@ -19,8 +20,10 @@ const manifest = JSON.parse(
 
 describe("manifest.json", () => {
   it("declares every Action the sidecar registers", () => {
+    const queue = {} as SpeechQueue;
     expect(manifest.actions.map(({ type }) => type)).toEqual([
-      new SpeakAction({} as SpeechQueue).type,
+      new SpeakAction(queue).type,
+      new StopSpeechAction(queue).type,
     ]);
   });
 
