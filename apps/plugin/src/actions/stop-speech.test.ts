@@ -1,5 +1,9 @@
 import { StandaloneTriggerContext } from "@fluxta/sdk/api";
-import type { SpeakSettings, StopSpeechSettings } from "tts-protocol";
+import {
+  INITIAL_DEFAULTS,
+  type SpeakSettings,
+  type StopSpeechSettings,
+} from "tts-protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { SpeechQueue } from "../speech/speech-queue";
@@ -90,7 +94,10 @@ describe("Speak and Stop Speech together", () => {
       onStarted: () => {},
       onFinished: () => {},
     });
-    const speak = new SpeakAction(queue);
+    const speak = new SpeakAction(queue, {
+      loaded: Promise.resolve(),
+      current: INITIAL_DEFAULTS,
+    });
     const stop = new StopSpeechAction(queue);
     const say = (text: string, tags: unknown[]) =>
       speak.onTrigger(
@@ -99,10 +106,10 @@ describe("Speak and Stop Speech together", () => {
           tags: tags as string[],
         }),
       );
-    say("first", [42]);
-    say("second", [42, "msg-2"]);
-    say("someone else", [7]);
-    say("third", ["42 "]);
+    await say("first", [42]);
+    await say("second", [42, "msg-2"]);
+    await say("someone else", [7]);
+    await say("third", ["42 "]);
     await settle();
 
     // A User Banned whose `userId` arrived as a string.

@@ -55,13 +55,13 @@ Editor-only rebuilds restart nothing — reopen the editor in Fluxta to see them
 ### Packages
 
 - `apps/plugin` (`tts-plugin`) — the Plugin sidecar: the Node.js process Fluxta starts. tsdown bundles it into `dist/tts/index.mjs`, the JXA scripts inside it, and copies `manifest.json` and `icons/` beside it.
-- `apps/editor` (`tts-editor`) — the Action Editors, React + Vite, built into `dist/tts/editor/`.
-- `packages/protocol` (`tts-protocol`) — what the sidecar and the editors share: every Action's settings type (`actions.ts`). Consumed as TypeScript source; it has no build.
+- `apps/editor` (`tts-editor`) — the Plugin Editor and the Action Editors, React + Vite, built into `dist/tts/editor/`.
+- `packages/protocol` (`tts-protocol`) — what the sidecar and the editors share: every Action's settings type (`actions.ts`), the Defaults and their bounds (`defaults.ts`), and the messages between the editors and the sidecar (`editor.ts`). Consumed as TypeScript source; it has no build.
 
 ### Plugin sidecar (`apps/plugin/src`)
 
 ```
-index.ts              composition root: the system Provider and Player, the Speech Queue, the Actions, Sources and Events
+index.ts              composition root: the system Provider and Player, the Voices, the Defaults, the Speech Queue, the Actions, Sources, Events and the editors' channel
 plugin.ts             the single `Plugin` instance from @fluxta/sdk/api
 events.ts             the Event Sources' kinds: `phrase-started`, `phrase-finished`
 manifest.test.ts      the manifest declares exactly what the sidecar registers and emits
@@ -69,7 +69,8 @@ speech/
   provider.ts         the Provider seam: Voice, Audio (WAV), ProviderError and its kinds
   player.ts           the Player seam: PlayerError and its kinds
   speech-queue.ts     the Speech Queue, and the log line of a dropped Phrase
-  voices.ts           the OS's default voice
+  voices.ts           the Provider's Voices, looked up once and kept; the OS's default voice
+  truncate.ts         the Length Limit: cut at the last word boundary, counted in graphemes
   wav.ts              Float32 samples → 16-bit WAV; a WAV's duration
 system/
   index.ts            the `system` Provider and Player for the OS the sidecar runs on
@@ -83,13 +84,20 @@ system/
 actions/              one StandaloneAction per manifest Action, file named after its `type`
   values.ts           what an interpolated setting holds: text, and Tags as they compare
 sources/              the Query Sources `speaking` and `waiting`, read off the Speech Queue
+settings/
+  defaults.ts         the Defaults read warily, and a Speak's effective settings: its Overrides over them
+  defaults-store.ts   the Defaults in Plugin Settings: read once, written only by the sidecar
+editors/
+  editor-channel.ts   the status every editor sees — Defaults, Voices — and the Plugin Editor's changes
+  voice-options.ts    a Voice as the editors list it: `Milena — Russian (Russia)`, sorted
 ```
 
 A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when its turn comes, the queue asks for its Voice, has the Provider synthesize it, and hands the WAV to the Player. The Player reports when the sound starts (`onStarted`), and the queue announces Phrase Started then and Phrase Finished when the play settles. Stopping a Phrase aborts its signal — whichever of the two is under way stops — or takes it out of the queue while it waits. Neither the Provider nor the Player knows about the queue, and the queue knows nothing of an OS — nor of Fluxta: `index.ts` turns its listeners into `emitEvent` calls.
 
 ### Editors (`apps/editor`)
 
-- One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
+- One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`; `plugin.html` is the Plugin Editor. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
+- Every editor asks the sidecar for its status (`useStatus`) and hears it again whenever the Defaults change. The Plugin Editor changes them by message, never with `setPluginSettings` of its own; a number field saves when it is left, not on every keystroke.
 - Editors are built from Fluxta's [UI Kit](https://fluxta.app/docs/plugins/reference/ui-kit) (`@fluxta/sdk/ui`). Text that can hold a `{{…}}` reference is a `TemplateField`.
 
 ## Key Conventions
@@ -100,6 +108,7 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 - **Urgency is atomic inside Speak.** A Now becomes the current Phrase within its own Speak and cuts the old one off — "Stop Speech, then Speak" would let the queue start its next Phrase in between. It is spoken only once the Phrase it cut off has ended, so that one's Phrase Finished goes out before its own Phrase Started.
 - **An empty Tag stops nothing.** Fluxta resolves an absent reference to `""`, so Stop Speech by Tag with nothing left after trimming does nothing at all — never Everything, which happens only when the user picks it. Speak discards an empty Tag. Tags compare exactly (`values.ts`); both Actions normalise them the same way.
 - **Every Phrase Started is followed by exactly one Phrase Finished**, however the Phrase ended — cut off by Stop Speech or a Now, or the Player failing mid-phrase. A Phrase that never started (stopped while it waited, its synthesis failed, the Player failed before any sound) fires neither. The queue enforces it: it starts a Phrase at most once, whatever the Player reports, and runs every listener so that one that throws cannot stop the queue.
+- **The sidecar is the only writer of Plugin Settings.** It reads them once, at startup — Fluxta echoes every write back, and an echo can arrive after a newer change — and the Plugin Editor asks it for a change by message. A Speak waits for that first read, then reads the Defaults as they stand when it runs: an absent Override follows its Default, and one it cannot read follows it too rather than dropping the Phrase.
 - **Speaking and Phrases Waiting are pulled** (`resolve: "query"`) and read the queue as it stands: a pushed value read right after a Speak would depend on whether the push had arrived.
 - **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is a `console.warn` line (`describeDrop`): the kind, the reason, the beginning of the text. A stopped Phrase is not a drop.
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.

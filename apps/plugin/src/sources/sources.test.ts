@@ -1,5 +1,5 @@
 import { StandaloneTriggerContext } from "@fluxta/sdk/api";
-import type { SpeakSettings } from "tts-protocol";
+import { INITIAL_DEFAULTS, type SpeakSettings } from "tts-protocol";
 import { describe, expect, it } from "vitest";
 
 import { SpeakAction } from "../actions/speak";
@@ -20,7 +20,10 @@ function setup() {
     onStarted: () => {},
     onFinished: () => {},
   });
-  const speak = new SpeakAction(queue);
+  const speak = new SpeakAction(queue, {
+    loaded: Promise.resolve(),
+    current: INITIAL_DEFAULTS,
+  });
   const trigger = (text: string) =>
     speak.onTrigger(
       new StandaloneTriggerContext<SpeakSettings>("action-1", { text }),
@@ -42,15 +45,16 @@ describe("Speaking and Phrases Waiting", () => {
     expect(createWaitingSource(queue).key).toBe("waiting");
   });
 
-  it("read the Speech Queue as it is right after a Speak", () => {
+  it("read the Speech Queue as it is right after a Speak", async () => {
     const { trigger, speaking, waiting } = setup();
     expect([speaking(), waiting()]).toEqual([false, 0]);
 
-    trigger("first");
+    // Fluxta runs the next step once the Speak has settled.
+    await trigger("first");
     expect([speaking(), waiting()]).toEqual([true, 0]);
 
     // The guard `Phrases Waiting < 10 → Speak` already counts this one.
-    trigger("second");
+    await trigger("second");
     expect(waiting()).toBe(1);
   });
 });

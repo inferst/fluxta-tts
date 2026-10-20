@@ -10,6 +10,12 @@ export type Phrase = {
    * strings: a Tag nothing can address is discarded before it gets here.
    */
   tags: readonly string[];
+  /** A Voice's id, or absent for the one `voiceFor` picks. */
+  voice?: string;
+  /** A multiplier, 1 being the voice's normal pace. */
+  rate: number;
+  /** 0–1, the Player's. */
+  volume: number;
 };
 
 /**
@@ -36,10 +42,6 @@ export type SpeechQueueOptions = {
    */
   onFinished: (phrase: Phrase) => void;
 };
-
-/** The voice's normal pace and full volume. */
-const RATE = 1;
-const VOLUME = 1;
 
 /** The Phrase being handled: synthesized, then played. */
 type Current = {
@@ -172,13 +174,13 @@ export class SpeechQueue {
       const audio = await provider.synthesize(
         phrase.text,
         voice,
-        { rate: RATE },
+        { rate: phrase.rate },
         signal,
       );
       await player.play(
         audio,
         {
-          volume: VOLUME,
+          volume: phrase.volume,
           // Once, and never after the play has settled — whatever the
           // Player does, a Phrase starts at most once.
           onStarted: () => {

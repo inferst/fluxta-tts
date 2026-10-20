@@ -8,6 +8,9 @@ import {
 } from "@fluxta/sdk/ui";
 import type { Position, SpeakSettings } from "tts-protocol";
 
+import { useStatus } from "../shared/useStatus";
+import { OverrideDefaults } from "./OverrideDefaults";
+
 const POSITIONS: { value: Position; label: string; hint: string }[] = [
   {
     value: "in-turn",
@@ -27,22 +30,23 @@ const POSITIONS: { value: Position; label: string; hint: string }[] = [
 ];
 
 export function SpeakEditor() {
-  const { values, set, update } = useActionSettings<Required<SpeakSettings>>({
+  const { values, set, update } = useActionSettings<SpeakSettings>({
     text: "",
     position: "in-turn",
     tags: [],
   });
+  const status = useStatus();
 
   const position =
     POSITIONS.find(({ value }) => value === values.position) ?? POSITIONS[0];
-  const tags = values.tags;
+  const tags = values.tags ?? [];
 
   return (
     <EditorPage>
       <TemplateField
         label="Text"
         multiline
-        value={values.text}
+        value={values.text ?? ""}
         onChange={set("text")}
         placeholder="A chat message, for example"
         hint="Read aloud in this computer’s voice. The step does not wait for it to be spoken; text that comes out empty is not spoken."
@@ -92,6 +96,8 @@ export function SpeakEditor() {
           </Button>
         </div>
       </Field>
+
+      <OverrideDefaults values={values} update={update} status={status} />
     </EditorPage>
   );
 }

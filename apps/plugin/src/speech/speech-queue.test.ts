@@ -36,7 +36,7 @@ function deferredStep(
 }
 
 function phrase(text: string, ...tags: string[]): Phrase {
-  return { text, tags };
+  return { text, tags, rate: 1, volume: 1 };
 }
 
 /**
@@ -190,7 +190,7 @@ describe("SpeechQueue", () => {
     expect(syntheses.map(({ text }) => text)).toEqual(["third"]);
   });
 
-  it("speaks with the Voice it is given, at normal pace and full volume", async () => {
+  it("speaks with the Voice it is given, at the Phrase's rate and volume", async () => {
     const synthesize = vi.fn(async () => new Uint8Array());
     const play = vi.fn(async () => {});
     const queue = new SpeechQueue({
@@ -202,18 +202,18 @@ describe("SpeechQueue", () => {
       onFinished: () => {},
     });
 
-    queue.enqueue(phrase("Привет"));
+    queue.enqueue({ text: "Привет", tags: [], rate: 1.5, volume: 0.4 });
     await settle();
 
     expect(synthesize).toHaveBeenCalledWith(
       "Привет",
       "com.apple.voice.compact.ru-RU.Milena",
-      { rate: 1 },
+      { rate: 1.5 },
       expect.any(AbortSignal),
     );
     expect(play).toHaveBeenCalledWith(
       expect.any(Uint8Array),
-      { volume: 1, onStarted: expect.any(Function) },
+      { volume: 0.4, onStarted: expect.any(Function) },
       expect.any(AbortSignal),
     );
   });
