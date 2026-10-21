@@ -29,11 +29,10 @@ queued, so the steps after it run at once, and a long Phrase is never cut
 short by Fluxta's step timeout.
 
 A Phrase is spoken as **Settings → Text to Speech** says — see
-[Defaults](#defaults) — on the system's default output device. Choosing the
-device comes next.
+[Defaults](#defaults) — including the output device it plays on.
 
-A Phrase that cannot be spoken — its text comes out empty, the voice is
-missing — is dropped, and the queue moves on. Each one is written to the
+A Phrase that cannot be spoken — its text comes out empty, the voice or the
+device is missing — is dropped, and the queue moves on. Each one is written to the
 plugin's log, with the reason and the beginning of its text. A restart of the
 plugin or of Fluxta drops whatever was still waiting.
 
@@ -94,6 +93,7 @@ otherwise:
 | **Default Voice** | Every voice on this computer, by language, then name — with its quality (Enhanced, Premium) where it has one. | The voice macOS speaks with         |
 | **Rate**          | 0.5× to 2.0×; 1.0× is the voice's normal pace.                                                                | 1.0×                                |
 | **Volume**        | 0–100 %, no boost.                                                                                            | 100 %                               |
+| **Output device** | **System default**, then every output device, under the names Play Sound shows.                               | System default                      |
 | **Length limit**  | Longer text is cut at the last word within this many characters, and the rest is not spoken. Empty: no limit. | 200 — about 12–15 seconds of speech |
 
 So a fresh install speaks without the settings ever being opened, and a
@@ -102,10 +102,31 @@ counts characters as a reader sees them: an emoji or an accented letter is
 one, and is never split.
 
 A Speak can override any of them under **Override defaults** — a louder voice
-for a Redemption, a longer limit for paid TTS. Each field starts at
-**Default**, which follows the settings; on another computer a Speak left at
-Default speaks with that computer's Default Voice. A Speak that names a voice
-this computer does not have shows it as _not available right now_.
+for a Redemption, a longer limit for paid TTS, headphones for a Phrase only
+you should hear. Each field starts at **Default**, which follows the
+settings; on another computer a Speak left at Default speaks with that
+computer's Default Voice. A Speak that names a voice or a device this
+computer does not have shows it as _not available right now_.
+
+### Output device
+
+The device decides who hears the speech: chat on a device OBS captures, a
+Phrase for you alone in headphones. **System default** is whatever this Mac
+plays on when the Phrase starts — and if OBS captures Desktop Audio, the
+stream hears it too.
+
+A Phrase never moves to another device, so it never reaches an audience it
+was not meant for:
+
+- a device that is not connected when the Phrase's turn comes drops it, and
+  the queue moves on;
+- a device unplugged mid-phrase cuts the Phrase off — nothing more is heard,
+  on it or on the speakers — and **Phrase Finished** fires;
+- on System default, switching the Mac's output mid-phrase cuts the Phrase
+  off too; the next one plays on the new output.
+
+A device plugged in while the settings are open shows up once they are
+reopened.
 
 ## Following the speech
 

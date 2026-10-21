@@ -67,9 +67,10 @@ events.ts             the Event Sources' kinds: `phrase-started`, `phrase-finish
 manifest.test.ts      the manifest declares exactly what the sidecar registers and emits
 speech/
   provider.ts         the Provider seam: Voice, Audio (WAV), ProviderError and its kinds
-  player.ts           the Player seam: PlayerError and its kinds
+  player.ts           the Player seam: Device, Output Device, PlayerError and its kinds
   speech-queue.ts     the Speech Queue, and the log line of a dropped Phrase
-  voices.ts           the Provider's Voices, looked up once and kept; the OS's default voice
+  listing.ts          a list looked up once and kept, and afresh when an editor opens
+  voices.ts           the Provider's Voices, so kept; the OS's default voice
   truncate.ts         the Length Limit: cut at the last word boundary, counted in graphemes
   wav.ts              Float32 samples → 16-bit WAV; a WAV's duration
 system/
@@ -78,7 +79,7 @@ system/
   macos/
     jxa-process.ts    one long-lived `osascript -l JavaScript` running a script
     synthesizer.jxa   AVSpeechSynthesizer: voices, synthesis to PCM
-    player.jxa        AVAudioEngine: plays a WAV file, reports its end, stops
+    player.jxa        Core Audio's devices; AVAudioEngine, one engine per device: plays a WAV file, reports its end, stops, cuts it off when its device goes
     macos-provider.ts the macOS `system` Provider over synthesizer.jxa
     macos-player.ts   the macOS Player over player.jxa
 actions/              one StandaloneAction per manifest Action, file named after its `type`
@@ -88,16 +89,17 @@ settings/
   defaults.ts         the Defaults read warily, and a Speak's effective settings: its Overrides over them
   defaults-store.ts   the Defaults in Plugin Settings: read once, written only by the sidecar
 editors/
-  editor-channel.ts   the status every editor sees — Defaults, Voices — and the Plugin Editor's changes
+  editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices — and the Plugin Editor's changes
   voice-options.ts    a Voice as the editors list it: `Milena — Russian (Russia)`, sorted
 ```
 
-A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when its turn comes, the queue asks for its Voice, has the Provider synthesize it, and hands the WAV to the Player. The Player reports when the sound starts (`onStarted`), and the queue announces Phrase Started then and Phrase Finished when the play settles. Stopping a Phrase aborts its signal — whichever of the two is under way stops — or takes it out of the queue while it waits. Neither the Provider nor the Player knows about the queue, and the queue knows nothing of an OS — nor of Fluxta: `index.ts` turns its listeners into `emitEvent` calls.
+A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when its turn comes, the queue asks for its Voice, has the Provider synthesize it, and hands the WAV to the Player with the Phrase's volume and Output Device. The Player reports when the sound starts (`onStarted`), and the queue announces Phrase Started then and Phrase Finished when the play settles. Stopping a Phrase aborts its signal — whichever of the two is under way stops — or takes it out of the queue while it waits. Neither the Provider nor the Player knows about the queue, and the queue knows nothing of an OS — nor of Fluxta: `index.ts` turns its listeners into `emitEvent` calls.
 
 ### Editors (`apps/editor`)
 
 - One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`; `plugin.html` is the Plugin Editor. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
 - Every editor asks the sidecar for its status (`useStatus`) and hears it again whenever the Defaults change. The Plugin Editor changes them by message, never with `setPluginSettings` of its own; a number field saves when it is left, not on every keystroke.
+- An Output Device field lists System default first, then the devices in the OS's order (`shared/devices.ts`). It saves a device with its name, so one that is not here is still shown by name, as _not available right now_.
 - Editors are built from Fluxta's [UI Kit](https://fluxta.app/docs/plugins/reference/ui-kit) (`@fluxta/sdk/ui`). Text that can hold a `{{…}}` reference is a `TemplateField`.
 
 ## Key Conventions
@@ -114,7 +116,9 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.
 - **No binary in the package.** The macOS engines are JXA scripts, run by the `osascript` every Mac ships. They are `.jxa` files bundled as strings (`jxa-text.ts`, for tsdown and vitest alike) and passed to `osascript -e` — nothing beside `index.mjs` to find at run time. They are not linted or formatted.
 - **The JXA scripts rest on undocumented behaviour**: a JS function passed where an Objective-C block is expected is called as that block, but only when the script's run loop yields — so the loop yields every 5 ms while something is under way and every second when idle. Messages are JSON lines with an `id`; the sidecar escapes everything above ASCII, because the script decodes stdin in whatever pieces arrive. A script announces `{"ready":true}`: a process that exits before that is `unavailable`, one that exits after it crashed (`transient`). `JxaProcess` starts one on first use and again after it exits; a script exits on end of stdin, so it never outlives the sidecar.
-- **The Player never trusts AVAudioEngine to report an end.** A configuration change stops the engine without calling a play's completion, so the script fails what was playing, and the sidecar stops any play that runs 5 s past its length.
+- **The Player never trusts AVAudioEngine to report an end, nor to keep its device.** An engine whose device goes away moves to the default output by itself — the speakers, possibly the stream — and then stops, without completing what was playing, or completing it at once as if it had ended; the configuration-change notification comes ~100 ms later. So the script watches every engine on each pass of its loop while something plays, and cuts a play off the moment its engine leaves its device or stops; a play on System default is cut off too once the OS's default output is another device. A node of such an engine is never stopped — its `stop` does not return — the engine is. The sidecar stops any play that runs 5 s past its length.
+- **A Phrase never moves to another device.** The Output Device decides who hears it, so a device that is not here drops the Phrase (`device-missing`) and one that goes away mid-phrase cuts it off — never System default instead. A device is saved by its Core Audio UID, which persists across boots and re-plugging, with its name for the editors and the reasons; an `AudioDeviceID` is a runtime id, resolved afresh for every play.
+- **Core Audio from JXA goes through `ObjC.bindFunction` with plain pointers.** Its device API is C only, and BridgeSupport's struct-pointer signatures crash `osascript`. A property's address is UInt32s in an `NSMutableData`; numbers come back through base64, strings through a `Ref`.
 - **Nothing is ever played aloud in tests or experiments.** Plays run at volume 0. The macOS integration test (`*.integration.test.ts`) drives the real engines this way and runs only on macOS; everything else runs against fakes (`FakeEngine`, fake Providers and Players) and needs no OS.
 - **The sidecar bundle is self-contained.** Fluxta runs it with a bundled Node and no `node_modules`, so tsdown inlines every non-builtin dependency (`noExternal`). Do not externalize one.
 - **File naming**: the sidecar and `tts-protocol` use kebab-case (`speech-queue.ts`, `macos-provider.ts`). In the editors, React components are PascalCase (`SpeakEditor.tsx`), hooks are `useThing.ts`.
