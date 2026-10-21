@@ -31,9 +31,16 @@ describe("Speak", () => {
     const { enqueue, trigger } = setup();
 
     expect(await trigger({ text: "Hello, chat!" })).toBeUndefined();
-    // The OS's voice, at the normal pace and full volume.
+    // The OS's voice, at the normal pace and full volume, on whatever this
+    // computer plays on.
     expect(enqueue).toHaveBeenCalledWith(
-      { text: "Hello, chat!", tags: [], rate: 1, volume: 1 },
+      {
+        text: "Hello, chat!",
+        tags: [],
+        rate: 1,
+        volume: 1,
+        device: "system-default",
+      },
       "in-turn",
     );
   });
@@ -110,10 +117,12 @@ describe("Speak", () => {
 });
 
 describe("Speak's defaults and overrides", () => {
+  const blackHole = { id: "BlackHole2ch_UID", name: "BlackHole 2ch" };
   const chosen: Defaults = {
     voice: "milena",
     rate: 1.2,
     volume: 80,
+    device: blackHole,
     lengthLimit: 200,
   };
 
@@ -128,18 +137,22 @@ describe("Speak's defaults and overrides", () => {
       voice: "milena",
       rate: 1.2,
       volume: 0.8,
+      device: blackHole,
     });
   });
 
   it("speaks with what it overrides, the rest following the defaults", async () => {
     const { enqueue, trigger } = setup(chosen);
 
-    await trigger({ text: "hi", voice: "ava", volume: 30 });
+    // A streamer-only Phrase, in headphones.
+    const headphones = { id: "headphones-uid", name: "AirPods" };
+    await trigger({ text: "hi", voice: "ava", volume: 30, device: headphones });
 
     expect(enqueue.mock.calls[0][0]).toMatchObject({
       voice: "ava",
       rate: 1.2,
       volume: 0.3,
+      device: headphones,
     });
   });
 

@@ -88,7 +88,7 @@ describe("Speak and Stop Speech together", () => {
           );
         },
       },
-      player: { play: async () => {} },
+      player: { devices: async () => [], play: async () => {} },
       voiceFor: async () => "voice-1",
       onDropped: () => {},
       onStarted: () => {},

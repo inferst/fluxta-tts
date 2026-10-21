@@ -41,6 +41,7 @@ describe("DefaultsStore", () => {
       voice: "ava",
       rate: 7,
       volume: 30,
+      device: { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
       lengthLimit: null,
     });
     // The next Speak already sees it, before the save has finished.
@@ -48,6 +49,7 @@ describe("DefaultsStore", () => {
       voice: "ava",
       rate: 2,
       volume: 30,
+      device: { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
       lengthLimit: null,
     });
     expect(onChange).toHaveBeenCalledOnce();

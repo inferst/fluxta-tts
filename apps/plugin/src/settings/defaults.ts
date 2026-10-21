@@ -2,8 +2,10 @@ import {
   INITIAL_DEFAULTS,
   RATE_MAX,
   RATE_MIN,
+  SYSTEM_DEFAULT,
   VOLUME_MAX,
   type Defaults,
+  type OutputDevice,
   type SpeakSettings,
 } from "tts-protocol";
 
@@ -19,6 +21,7 @@ export function readDefaults(raw: unknown): Defaults {
     ...(voice !== undefined && { voice }),
     rate: rateOf(record.rate) ?? INITIAL_DEFAULTS.rate,
     volume: volumeOf(record.volume) ?? INITIAL_DEFAULTS.volume,
+    device: deviceOf(record.device) ?? INITIAL_DEFAULTS.device,
     lengthLimit:
       record.lengthLimit === null
         ? null
@@ -33,6 +36,7 @@ export type EffectiveSettings = {
   rate: number;
   /** 0–100 %. */
   volume: number;
+  device: OutputDevice;
   lengthLimit: number | null;
 };
 
@@ -50,12 +54,26 @@ export function effectiveSettings(
     ...(voice !== undefined && { voice }),
     rate: rateOf(speak?.rate) ?? defaults.rate,
     volume: volumeOf(speak?.volume) ?? defaults.volume,
+    device: deviceOf(speak?.device) ?? defaults.device,
     lengthLimit: lengthLimitOf(speak?.lengthLimit) ?? defaults.lengthLimit,
   };
 }
 
 function voiceOf(value: unknown): string | undefined {
   return typeof value === "string" && value !== "" ? value : undefined;
+}
+
+/** System default, or a device with an id — named by its id if it has no name. */
+function deviceOf(value: unknown): OutputDevice | undefined {
+  if (value === SYSTEM_DEFAULT) {
+    return SYSTEM_DEFAULT;
+  }
+  if (!isRecord(value) || typeof value.id !== "string" || value.id === "") {
+    return undefined;
+  }
+  const name =
+    typeof value.name === "string" && value.name !== "" ? value.name : value.id;
+  return { id: value.id, name };
 }
 
 /** Clamped to 0.5×–2×, the range the editors offer. */

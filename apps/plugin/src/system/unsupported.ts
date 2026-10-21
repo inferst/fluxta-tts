@@ -16,6 +16,7 @@ export function unsupported(reason: string): {
         Promise.reject(new ProviderError("unavailable", reason)),
     },
     player: {
+      devices: () => Promise.reject(new PlayerError("unavailable", reason)),
       play: () => Promise.reject(new PlayerError("unavailable", reason)),
     },
   };

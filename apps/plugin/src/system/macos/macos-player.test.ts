@@ -34,6 +34,7 @@ async function requested(engine: FakeEngine) {
 }
 
 const second = encodeWav(new Float32Array(22_050), 22_050);
+const SYSTEM_DEFAULT = "system-default";
 
 describe("MacosPlayer", () => {
   it("plays the audio from a file, and removes the file once it has ended", async () => {
@@ -42,12 +43,13 @@ describe("MacosPlayer", () => {
 
     const played = player.play(
       second,
-      { volume: 0.4, onStarted },
+      { volume: 0.4, device: SYSTEM_DEFAULT, onStarted },
       new AbortController().signal,
     );
     const { id, message } = await requested(engine);
 
-    expect(message).toMatchObject({ op: "play", volume: 0.4 });
+    // No device: the script plays on the default output as it stands.
+    expect(message).toEqual({ op: "play", path: message.path, volume: 0.4 });
     const path = message.path as string;
     expect(path.startsWith(folder)).toBe(true);
     expect(new Uint8Array(readFileSync(path))).toEqual(second);
@@ -63,24 +65,86 @@ describe("MacosPlayer", () => {
     expect(engine.listening).toBe(0);
   });
 
+  it("plays on a chosen device by its UID, naming it for the script's reasons", async () => {
+    const { engine, player } = setup();
+
+    void player.play(
+      second,
+      {
+        volume: 1,
+        device: { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
+      },
+      new AbortController().signal,
+    );
+    const { message } = await requested(engine);
+
+    expect(message).toMatchObject({
+      op: "play",
+      device: "BlackHole2ch_UID",
+      name: "BlackHole 2ch",
+    });
+  });
+
+  it("lists the devices the script finds", async () => {
+    const { engine, player } = setup();
+    const devices = [
+      { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
+      {
+        id: "BuiltInSpeakerDevice",
+        name: "Mac mini Speakers",
+        isDefault: true,
+      },
+    ];
+
+    const listed = player.devices();
+    const [{ id, message }] = engine.requests;
+    expect(message).toEqual({ op: "devices" });
+    engine.reply(id, { devices });
+
+    expect(await listed).toEqual(devices);
+    expect(engine.listening).toBe(0);
+  });
+
+  it("says why it cannot list the devices", async () => {
+    const { engine, player } = setup();
+
+    const listed = player.devices();
+    engine.reply(engine.requests[0].id, {
+      error: {
+        kind: "unavailable",
+        reason: "The player cannot run on this Mac",
+      },
+    });
+
+    await expect(listed).rejects.toEqual(
+      new PlayerError("unavailable", "The player cannot run on this Mac"),
+    );
+  });
+
   it("passes on the script's failures with their kind", async () => {
     const { engine, player } = setup();
 
     const played = player.play(
       second,
-      { volume: 1 },
+      { volume: 1, device: SYSTEM_DEFAULT },
       new AbortController().signal,
     );
     const { id } = await requested(engine);
     engine.reply(id, { started: true });
     engine.reply(id, {
-      error: { kind: "transient", reason: "The output device changed" },
+      error: {
+        kind: "device-missing",
+        reason: "BlackHole 2ch was disconnected while speaking",
+      },
     });
 
     await expect(played).rejects.toEqual(
-      new PlayerError("transient", "The output device changed"),
+      new PlayerError(
+        "device-missing",
+        "BlackHole 2ch was disconnected while speaking",
+      ),
     );
-    await expect(played).rejects.toHaveProperty("kind", "transient");
+    await expect(played).rejects.toHaveProperty("kind", "device-missing");
     expect(await readdir(folder)).toEqual([]);
   });
 
@@ -88,7 +152,11 @@ describe("MacosPlayer", () => {
     const { engine, player } = setup();
     const abort = new AbortController();
 
-    const played = player.play(second, { volume: 1 }, abort.signal);
+    const played = player.play(
+      second,
+      { volume: 1, device: SYSTEM_DEFAULT },
+      abort.signal,
+    );
     const { id } = await requested(engine);
     engine.reply(id, { started: true });
     abort.abort(new DOMException("Stopped", "AbortError"));
@@ -104,7 +172,7 @@ describe("MacosPlayer", () => {
 
     const played = player.play(
       second,
-      { volume: 1 },
+      { volume: 1, device: SYSTEM_DEFAULT },
       new AbortController().signal,
     );
     const { id } = await requested(engine);
@@ -126,7 +194,7 @@ describe("MacosPlayer", () => {
 
     const played = player.play(
       second,
-      { volume: 1, onStarted },
+      { volume: 1, device: SYSTEM_DEFAULT, onStarted },
       new AbortController().signal,
     );
     const { id } = await requested(engine);
@@ -147,7 +215,7 @@ describe("MacosPlayer", () => {
     abort.abort(new DOMException("Stopped", "AbortError"));
 
     await expect(
-      player.play(second, { volume: 1 }, abort.signal),
+      player.play(second, { volume: 1, device: SYSTEM_DEFAULT }, abort.signal),
     ).rejects.toMatchObject({ name: "AbortError" });
     expect(engine.requests).toHaveLength(0);
   });

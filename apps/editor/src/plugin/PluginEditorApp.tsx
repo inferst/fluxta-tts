@@ -13,6 +13,13 @@ import {
   type PluginStatus,
 } from "tts-protocol";
 
+import {
+  deviceOf,
+  deviceOptions,
+  deviceValue,
+  missingDevice,
+  systemDefaultNow,
+} from "../shared/devices";
 import { SavedNumberField } from "../shared/SavedNumberField";
 import { sendToPlugin } from "../shared/sendToPlugin";
 import { useStatus } from "../shared/useStatus";
@@ -67,7 +74,8 @@ const RATE_OPTIONS = RATES.map((rate) => ({
 
 function DefaultsForm({ status }: { status: PluginStatus }) {
   const editor = usePluginEditor();
-  const { defaults, defaultVoice, voices, voicesProblem } = status;
+  const { defaults, defaultVoice, voices, voicesProblem, devices } = status;
+  const now = systemDefaultNow(devices);
 
   const save = (changes: Partial<Defaults>) =>
     sendToPlugin(editor, {
@@ -108,6 +116,18 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
         min={0}
         max={VOLUME_MAX}
         hint="100 % is the voice as it is synthesized, with no boost."
+      />
+
+      <SelectField
+        label="Output device"
+        options={deviceOptions(devices)}
+        value={deviceValue(defaults.device)}
+        onChange={(value) =>
+          save({ device: deviceOf(value, devices, defaults.device) })
+        }
+        missingLabel={missingDevice(defaults.device)}
+        error={status.devicesProblem}
+        hint={`Who hears the speech. System default is whatever this Mac plays on${now ? ` — now ${now}` : ""}. A Phrase whose device goes away is cut off, never moved to another one.`}
       />
 
       <SavedNumberField

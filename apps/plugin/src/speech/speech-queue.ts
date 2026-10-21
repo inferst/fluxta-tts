@@ -1,4 +1,4 @@
-import { PlayerError, type Player } from "./player";
+import { PlayerError, type OutputDevice, type Player } from "./player";
 import { ProviderError, type Provider } from "./provider";
 
 /** One Speak's text as accepted into the Speech Queue. */
@@ -16,6 +16,7 @@ export type Phrase = {
   rate: number;
   /** 0–1, the Player's. */
   volume: number;
+  device: OutputDevice;
 };
 
 /**
@@ -181,6 +182,7 @@ export class SpeechQueue {
         audio,
         {
           volume: phrase.volume,
+          device: phrase.device,
           // Once, and never after the play has settled — whatever the
           // Player does, a Phrase starts at most once.
           onStarted: () => {

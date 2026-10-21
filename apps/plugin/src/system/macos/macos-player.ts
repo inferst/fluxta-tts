@@ -6,6 +6,7 @@ import { join } from "node:path";
 import {
   isPlayerErrorKind,
   PlayerError,
+  type Device,
   type PlayOptions,
   type Player,
 } from "../../speech/player";
@@ -23,9 +24,10 @@ import player from "./player.jxa";
 const END_GRACE_MS = 5000;
 
 /**
- * The macOS Player: AVAudioEngine through a long-lived JXA script, on the
- * system default output. Each Phrase goes to the script as a WAV file in a
- * private temporary folder, deleted once it has played.
+ * The macOS Player: AVAudioEngine through a long-lived JXA script, one
+ * engine per output device. Devices are Core Audio's, known by their UID.
+ * Each Phrase goes to the script as a WAV file in a private temporary
+ * folder, deleted once it has played.
  */
 export class MacosPlayer implements Player {
   readonly #engine: Engine;
@@ -39,6 +41,19 @@ export class MacosPlayer implements Player {
   ) {
     this.#engine = engine;
     this.#folder = folder;
+  }
+
+  devices(): Promise<Device[]> {
+    return new Promise((resolve, reject) => {
+      const id = this.#engine.request({ op: "devices" }, (reply) => {
+        this.#engine.release(id);
+        if (reply.error) {
+          reject(playerError(reply.error));
+        } else {
+          resolve(reply.devices as Device[]);
+        }
+      });
+    });
   }
 
   async play(
@@ -61,7 +76,7 @@ export class MacosPlayer implements Player {
   #play(
     path: string,
     seconds: number,
-    { volume, onStarted }: PlayOptions,
+    { volume, device, onStarted }: PlayOptions,
     signal: AbortSignal,
   ): Promise<void> {
     return new Promise((resolve, reject) => {
@@ -76,30 +91,39 @@ export class MacosPlayer implements Player {
         settle();
         reject(signal.reason);
       };
-      const id = this.#engine.request({ op: "play", path, volume }, (reply) => {
-        if (reply.error) {
-          settle();
-          reject(playerError(reply.error));
-        } else if (reply.started) {
-          onStarted?.();
-          watchdog = setTimeout(
-            () => {
-              this.#engine.notify({ op: "stop", id });
-              settle();
-              reject(
-                new PlayerError(
-                  "transient",
-                  "The sound never reported its end; it was stopped",
-                ),
-              );
-            },
-            seconds * 1000 + END_GRACE_MS,
-          );
-        } else if (reply.ended) {
-          settle();
-          resolve();
-        }
-      });
+      // Without a device the script plays on the default output as it
+      // stands; the name is only for its reasons.
+      const target =
+        device === "system-default"
+          ? {}
+          : { device: device.id, name: device.name };
+      const id = this.#engine.request(
+        { op: "play", path, volume, ...target },
+        (reply) => {
+          if (reply.error) {
+            settle();
+            reject(playerError(reply.error));
+          } else if (reply.started) {
+            onStarted?.();
+            watchdog = setTimeout(
+              () => {
+                this.#engine.notify({ op: "stop", id });
+                settle();
+                reject(
+                  new PlayerError(
+                    "transient",
+                    "The sound never reported its end; it was stopped",
+                  ),
+                );
+              },
+              seconds * 1000 + END_GRACE_MS,
+            );
+          } else if (reply.ended) {
+            settle();
+            resolve();
+          }
+        },
+      );
       signal.addEventListener("abort", onAbort, { once: true });
     });
   }
