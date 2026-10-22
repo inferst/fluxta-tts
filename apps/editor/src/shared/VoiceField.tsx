@@ -1,6 +1,12 @@
-import { Button, Field, SelectField, type SelectOption } from "@fluxta/sdk/ui";
-import type { ReactNode } from "react";
-import type { ListenSettings } from "tts-protocol";
+import {
+  Button,
+  Field,
+  Input,
+  SelectField,
+  type SelectOption,
+} from "@fluxta/sdk/ui";
+import { useState, type ReactNode } from "react";
+import { LISTEN_TEXT, type ListenSettings } from "tts-protocol";
 
 import { useListen } from "./useListen";
 
@@ -19,9 +25,10 @@ type VoiceFieldProps = {
 };
 
 /**
- * The voice field, with Listen beside it: the Voice's name, spoken with the
- * form's rate, volume and output device. Why a Listen could not be heard
- * takes the place of the field's error.
+ * The voice field, with Listen under it: the text typed beside the button,
+ * spoken with the form's rate, volume and output device. The text is the
+ * editor's alone — never saved — and starts as the greeting. Why a
+ * Listen could not be heard takes the place of the field's error.
  */
 export function VoiceField({
   label,
@@ -30,15 +37,30 @@ export function VoiceField({
   listen: settings,
   ...select
 }: VoiceFieldProps) {
-  const { listen, problem } = useListen(settings);
+  const [text, setText] = useState(LISTEN_TEXT);
+  const { listen, problem } = useListen(text, settings);
 
   return (
     <Field label={label} hint={hint} error={problem ?? error}>
-      <div className="with-listen">
+      <div className="voice-field">
         <SelectField {...select} />
-        <Button variant="outline" onClick={listen}>
-          Listen
-        </Button>
+        <div className="with-listen">
+          <Input
+            value={text}
+            onChange={(event) => setText(event.target.value)}
+            onKeyDown={(event) => {
+              // Not the Enter that ends an input method's composition.
+              if (event.key === "Enter" && !event.nativeEvent.isComposing) {
+                listen();
+              }
+            }}
+            placeholder={LISTEN_TEXT}
+            aria-label="What Listen says"
+          />
+          <Button variant="outline" onClick={listen}>
+            Listen
+          </Button>
+        </div>
       </div>
     </Field>
   );

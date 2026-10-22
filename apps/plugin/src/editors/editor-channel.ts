@@ -1,9 +1,4 @@
-import type {
-  EditorMessage,
-  ListenSettings,
-  PluginMessage,
-  PluginStatus,
-} from "tts-protocol";
+import type { EditorMessage, PluginMessage, PluginStatus } from "tts-protocol";
 
 import type { DefaultsStore } from "../settings/defaults-store";
 import type { Listing } from "../speech/listing";
@@ -11,7 +6,7 @@ import type { Device } from "../speech/player";
 import type { Voice } from "../speech/provider";
 import type { SpeechQueue } from "../speech/speech-queue";
 import { osDefaultOf, type Voices } from "../speech/voices";
-import { listenPhrase } from "./listen";
+import { listenPhrase, type ListenRequest } from "./listen";
 import { voiceName, voiceOptions } from "./voice-options";
 
 interface EditorSender {
@@ -65,7 +60,7 @@ export class EditorChannel {
         await this.#defaults.set(message.defaults);
         return;
       case "listen":
-        await this.#listen(message.id, message.settings);
+        await this.#listen(message);
         return;
     }
   }
@@ -88,11 +83,14 @@ export class EditorChannel {
    * Defaults are read now, so a Plugin Editor change saved a moment before —
    * a number field saves as the click on Listen leaves it — is heard.
    */
-  async #listen(id: string, settings: ListenSettings): Promise<void> {
+  async #listen({ id, text, settings }: ListenRequest): Promise<void> {
     try {
       const phrase = await listenPhrase(
-        id,
-        isRecord(settings) ? settings : {},
+        {
+          id,
+          text: typeof text === "string" ? text : "",
+          settings: isRecord(settings) ? settings : {},
+        },
         this.#defaults.current,
         this.#voices,
       );

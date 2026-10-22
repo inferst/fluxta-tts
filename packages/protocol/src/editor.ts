@@ -37,6 +37,13 @@ export type PluginStatus = {
 };
 
 /**
+ * The greeting a Listen says while its field is blank, and what the field
+ * starts with: English, whatever the voice — a voice of another language
+ * reads it with its own accent.
+ */
+export const LISTEN_TEXT = "Hello, chat! This is how I sound.";
+
+/**
  * What a Listen speaks with, read as Speak's Overrides: whatever it leaves
  * out follows the Defaults.
  */
@@ -52,10 +59,10 @@ export type EditorMessage =
   /** Saves the Plugin Editor's defaults; the sidecar reads them warily. */
   | { event: "set-defaults"; defaults: Defaults }
   /**
-   * Speaks the Voice's name as the form stands. `id` is the editor's own,
-   * so that only it hears the answer.
+   * Speaks `text` — {@link LISTEN_TEXT} when it is blank — as the form
+   * stands. `id` is the editor's own, so that only it hears the answer.
    */
-  | { event: "listen"; id: string; settings: ListenSettings };
+  | { event: "listen"; id: string; text: string; settings: ListenSettings };
 
 /** What the sidecar sends the editors — every open one. */
 export type PluginMessage =

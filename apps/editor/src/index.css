@@ -50,7 +50,13 @@
   align-self: flex-start;
 }
 
-/* A voice field and its Listen button, side by side. */
+/* A voice field, and under it what Listen says beside its button. */
+.voice-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
 .with-listen {
   display: flex;
   align-items: center;

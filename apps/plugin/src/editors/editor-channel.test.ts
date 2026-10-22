@@ -1,4 +1,9 @@
-import { INITIAL_DEFAULTS, type PluginMessage } from "tts-protocol";
+import {
+  INITIAL_DEFAULTS,
+  LISTEN_TEXT,
+  type EditorMessage,
+  type PluginMessage,
+} from "tts-protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { DefaultsStore } from "../settings/defaults-store";
@@ -190,26 +195,22 @@ describe("EditorChannel", () => {
 });
 
 describe("Listen", () => {
-  const katya: Voice = {
-    id: "katya",
-    name: "Katya (Enhanced)",
-    language: "ru-RU",
-    quality: "enhanced",
-  };
+  const text = "Hello";
 
-  it("speaks the Voice's name as Next, as the form says, out of scenarios' sight", async () => {
+  it("speaks the typed text as Next, as the form says, out of scenarios' sight", async () => {
     const { channel, defaults, enqueue, sent } = setup();
     defaults.load({});
 
     await channel.handle({
       event: "listen",
       id: "l-1",
+      text: "Thanks for the follow!",
       settings: { voice: "ava", rate: 1.5, volume: 40, device: blackHole },
     });
 
     expect(enqueue).toHaveBeenCalledWith(
       {
-        text: "Ava",
+        text: "Thanks for the follow!",
         tags: [],
         voice: "ava",
         rate: 1.5,
@@ -226,16 +227,16 @@ describe("Listen", () => {
     const { channel, defaults, enqueue } = setup();
     defaults.load({ defaults: { rate: 0.8, volume: 70, device: blackHole } });
 
-    await channel.handle({ event: "listen", id: "l-1", settings: {} });
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
     await channel.handle({
       event: "listen",
       id: "l-2",
+      text,
       settings: { device: "system-default" },
     });
 
     expect(enqueue.mock.calls.map(([phrase]) => phrase)).toEqual([
       expect.objectContaining({
-        text: "Milena",
         voice: "milena",
         rate: 0.8,
         volume: 0.7,
@@ -253,20 +254,32 @@ describe("Listen", () => {
       event: "set-defaults",
       defaults: { ...INITIAL_DEFAULTS, volume: 30 },
     });
-    await channel.handle({ event: "listen", id: "l-1", settings: {} });
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
 
     expect(enqueue.mock.calls[0][0].volume).toBe(0.3);
   });
 
-  it("says the name without the quality macOS writes into it", async () => {
-    const { channel, defaults, enqueue } = setup({
-      lookUpVoices: async () => [katya],
-    });
+  it("says the greeting when the field is blank", async () => {
+    const { channel, defaults, enqueue } = setup();
     defaults.load({});
 
-    await channel.handle({ event: "listen", id: "l-1", settings: {} });
+    await channel.handle({
+      event: "listen",
+      id: "l-1",
+      text: " ",
+      settings: {},
+    });
+    // Read warily, as the settings are.
+    await channel.handle({
+      event: "listen",
+      id: "l-2",
+      settings: {},
+    } as unknown as EditorMessage);
 
-    expect(enqueue.mock.calls[0][0].text).toBe("Katya");
+    expect(enqueue.mock.calls.map(([phrase]) => phrase.text)).toEqual([
+      LISTEN_TEXT,
+      LISTEN_TEXT,
+    ]);
   });
 
   it("answers the editor that asked when the Voice is not here, speaking nothing", async () => {
@@ -276,6 +289,7 @@ describe("Listen", () => {
     await channel.handle({
       event: "listen",
       id: "l-1",
+      text,
       settings: { voice: "gone" },
     });
 
@@ -300,7 +314,7 @@ describe("Listen", () => {
     });
     defaults.load({});
 
-    await channel.handle({ event: "listen", id: "l-1", settings: {} });
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
 
     expect(sent).toEqual([
       {

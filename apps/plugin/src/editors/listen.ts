@@ -1,24 +1,29 @@
-import type { Defaults, ListenSettings } from "tts-protocol";
+import { LISTEN_TEXT, type Defaults, type EditorMessage } from "tts-protocol";
 
 import { effectiveSettings } from "../settings/defaults";
 import { ProviderError } from "../speech/provider";
 import type { Phrase } from "../speech/speech-queue";
 import type { Voices } from "../speech/voices";
 
+export type ListenRequest = Omit<
+  Extract<EditorMessage, { event: "listen" }>,
+  "event"
+>;
+
 /**
- * A Listen's Phrase: the Voice's name — every voice can say it, and no text
- * needs translating — spoken as the editor's form stands, unsaved. What the
+ * A Listen's Phrase: the text typed beside the button — the greeting when
+ * the field is blank — spoken as the editor's form stands, unsaved. What the
  * form leaves out follows the Defaults, as on Speak; the Length Limit plays
- * no part.
+ * no part: the streamer typed the text to hear it whole.
  */
 export async function listenPhrase(
-  id: string,
-  settings: ListenSettings,
+  { id, text, settings }: ListenRequest,
   defaults: Defaults,
   voices: Voices,
 ): Promise<Phrase> {
   const { voice, rate, volume, device } = effectiveSettings(defaults, settings);
   const voiceId = voice ?? (await voices.osDefault());
+  // Answered before the Listen waits its turn, not once it comes.
   const found = (await voices.list()).find(
     (candidate) => candidate.id === voiceId,
   );
@@ -29,7 +34,7 @@ export async function listenPhrase(
     );
   }
   return {
-    text: spokenName(found.name),
+    text: text.trim() || LISTEN_TEXT,
     tags: [],
     voice: found.id,
     rate,
@@ -37,12 +42,4 @@ export async function listenPhrase(
     device,
     listen: id,
   };
-}
-
-/**
- * A Voice's name as it is said: macOS writes the quality into some names —
- * "Katya (Enhanced)" — and the voice would read it out.
- */
-export function spokenName(name: string): string {
-  return name.replace(/\s*\([^)]*\)\s*$/, "") || name;
 }
