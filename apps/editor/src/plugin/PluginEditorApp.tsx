@@ -23,6 +23,7 @@ import {
 import { SavedNumberField } from "../shared/SavedNumberField";
 import { sendToPlugin } from "../shared/sendToPlugin";
 import { useStatus } from "../shared/useStatus";
+import { VoiceField } from "../shared/VoiceField";
 
 /**
  * How long to wait for the sidecar before saying the plugin process itself is
@@ -89,14 +90,18 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
         How every Speak speaks unless it overrides it, under Override defaults.
       </p>
 
-      <SelectField
+      <VoiceField
         label="Default Voice"
         options={voices.map(({ id, label }) => ({ value: id, label }))}
         value={defaultVoice?.id}
         onChange={(voice) => save({ voice })}
         placeholder="No voices"
         error={voicesProblem}
-        hint="Until you pick one, it is the voice this computer speaks with."
+        hint="Until you pick one, it is the voice this computer speaks with. Listen waits for the Phrase being spoken, then goes ahead of the rest."
+        // Every field here is saved by the time a click reaches Listen — a
+        // number field as the click leaves it — so the sidecar's Defaults are
+        // the form.
+        listen={{}}
       />
 
       <SelectField

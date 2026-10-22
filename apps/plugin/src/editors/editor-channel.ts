@@ -1,37 +1,55 @@
-import type { EditorMessage, PluginMessage, PluginStatus } from "tts-protocol";
+import type {
+  EditorMessage,
+  ListenSettings,
+  PluginMessage,
+  PluginStatus,
+} from "tts-protocol";
 
+import type { DefaultsStore } from "../settings/defaults-store";
 import type { Listing } from "../speech/listing";
 import type { Device } from "../speech/player";
 import type { Voice } from "../speech/provider";
+import type { SpeechQueue } from "../speech/speech-queue";
 import { osDefaultOf, type Voices } from "../speech/voices";
-import type { DefaultsStore } from "../settings/defaults-store";
+import { listenPhrase } from "./listen";
 import { voiceName, voiceOptions } from "./voice-options";
 
 interface EditorSender {
   sendToEditor(message: PluginMessage): void;
 }
 
+export type EditorChannelOptions = {
+  sender: EditorSender;
+  defaults: DefaultsStore;
+  voices: Voices;
+  devices: Listing<Device>;
+  queue: Pick<SpeechQueue, "enqueue">;
+};
+
 /**
  * The sidecar's side of the editors: the Plugin Editor and every Action
  * Editor see one status — the defaults, the voices and the output devices —
- * and the Plugin Editor changes the defaults through it.
+ * the Plugin Editor changes the defaults through it, and either one Listens.
  */
 export class EditorChannel {
   readonly #sender: EditorSender;
   readonly #defaults: DefaultsStore;
   readonly #voices: Voices;
   readonly #devices: Listing<Device>;
+  readonly #queue: Pick<SpeechQueue, "enqueue">;
 
-  constructor(
-    sender: EditorSender,
-    defaults: DefaultsStore,
-    voices: Voices,
-    devices: Listing<Device>,
-  ) {
+  constructor({
+    sender,
+    defaults,
+    voices,
+    devices,
+    queue,
+  }: EditorChannelOptions) {
     this.#sender = sender;
     this.#defaults = defaults;
     this.#voices = voices;
     this.#devices = devices;
+    this.#queue = queue;
   }
 
   async handle(message: EditorMessage): Promise<void> {
@@ -46,6 +64,41 @@ export class EditorChannel {
         // The store announces the change, and every editor hears it.
         await this.#defaults.set(message.defaults);
         return;
+      case "listen":
+        await this.#listen(message.id, message.settings);
+        return;
+    }
+  }
+
+  /**
+   * Tells the editor that asked for Listen `id` why it could not be heard:
+   * a Voice or a device that is not here, the Provider or the Player out of
+   * order. A Listen that was heard, or stopped, is not answered.
+   */
+  listenFailed(id: string, error: unknown): void {
+    this.#sender.sendToEditor({
+      event: "listen-failed",
+      id,
+      problem: error instanceof Error ? error.message : String(error),
+    });
+  }
+
+  /**
+   * As Next: never over a viewer's Phrase, never cutting one off. The
+   * Defaults are read now, so a Plugin Editor change saved a moment before —
+   * a number field saves as the click on Listen leaves it — is heard.
+   */
+  async #listen(id: string, settings: ListenSettings): Promise<void> {
+    try {
+      const phrase = await listenPhrase(
+        id,
+        isRecord(settings) ? settings : {},
+        this.#defaults.current,
+        this.#voices,
+      );
+      this.#queue.enqueue(phrase, "next");
+    } catch (error) {
+      this.listenFailed(id, error);
     }
   }
 
@@ -62,6 +115,10 @@ export class EditorChannel {
       ),
     });
   }
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null && !Array.isArray(value);
 }
 
 /** The list, or why there is none. */

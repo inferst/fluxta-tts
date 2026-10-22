@@ -17,6 +17,12 @@ export type Phrase = {
   /** 0–1, the Player's. */
   volume: number;
   device: OutputDevice;
+  /**
+   * Present on a Listen's Phrase: the id the editor that asked gave it.
+   * Spoken like any other, but out of a scenario's sight — see
+   * {@link SpeechQueue}.
+   */
+  listen?: string;
 };
 
 /**
@@ -33,13 +39,13 @@ export type SpeechQueueOptions = {
   voiceFor: (phrase: Phrase) => Promise<string>;
   /** A Phrase that could not be spoken, and why. The queue moves on. */
   onDropped: (phrase: Phrase, error: unknown) => void;
-  /** A Phrase's sound has started. */
+  /** A Phrase's sound has started. Never called for a Listen. */
   onStarted: (phrase: Phrase) => void;
   /**
    * A Phrase that started has ended, however it ended — spoken to the end,
    * cut off by Stop Speech or a Now, or by the Player failing. Called exactly
    * once for every `onStarted`, so whatever a scenario shows on Phrase
-   * Started is never left stuck.
+   * Started is never left stuck. Never called for a Listen.
    */
   onFinished: (phrase: Phrase) => void;
 };
@@ -63,6 +69,11 @@ type Current = {
  * Phrase's place within the Speak that asked for it — "skip, then Speak" as
  * two Actions would let the queue start its next Phrase in between. It lives
  * in memory: a restart loses whatever was waiting.
+ *
+ * A Listen's Phrase waits its turn like a Next one, so it never talks over a
+ * viewer, and Stop Speech reaches it as it reaches any Phrase. Scenarios do
+ * not see it otherwise: it is not counted by `speaking` or `waiting`, and it
+ * starts and finishes without `onStarted` or `onFinished`.
  */
 export class SpeechQueue {
   readonly #options: SpeechQueueOptions;
@@ -113,17 +124,17 @@ export class SpeechQueue {
     }
   }
 
-  /** How many Phrases wait — the one being spoken not counted. */
+  /** How many Phrases wait — the one being spoken and Listens not counted. */
   get waiting(): number {
-    return this.#ahead.length + this.#inTurn.length;
+    return [...this.#ahead, ...this.#inTurn].filter(seen).length;
   }
 
   /**
-   * Whether a Phrase is being handled, from the moment it leaves the queue —
-   * its synthesis included — until it ends.
+   * Whether a Phrase other than a Listen is being handled, from the moment it
+   * leaves the queue — its synthesis included — until it ends.
    */
   get speaking(): boolean {
-    return this.#current !== undefined;
+    return this.#current !== undefined && seen(this.#current.phrase);
   }
 
   #advance(): void {
@@ -190,7 +201,9 @@ export class SpeechQueue {
               return;
             }
             started = true;
-            notify(() => onStarted(phrase));
+            if (seen(phrase)) {
+              notify(() => onStarted(phrase));
+            }
           },
         },
         signal,
@@ -202,11 +215,16 @@ export class SpeechQueue {
       }
     } finally {
       ended = true;
-      if (started) {
+      if (started && seen(phrase)) {
         notify(() => onFinished(phrase));
       }
     }
   }
+}
+
+/** Whether scenarios see the Phrase: every one but a Listen's. */
+function seen(phrase: Phrase): boolean {
+  return phrase.listen === undefined;
 }
 
 /**
