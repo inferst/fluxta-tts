@@ -7,6 +7,14 @@ export type VoiceOption = {
   label: string;
 };
 
+/** An output device as the editors list it, under the name the OS gives it. */
+export type DeviceOption = {
+  id: string;
+  name: string;
+  /** The OS's default output right now: where System default plays. */
+  isDefault?: boolean;
+};
+
 /** What the sidecar tells every open editor. */
 export type PluginStatus = {
   /** As saved in Plugin Settings. */
@@ -21,6 +29,10 @@ export type PluginStatus = {
   voices: VoiceOption[];
   /** Why there are no voices to list: the Provider's reason. */
   voicesProblem?: string;
+  /** In the OS's order, as the host's Play Sound lists them. */
+  devices: DeviceOption[];
+  /** Why there are no devices to list: the Player's reason. */
+  devicesProblem?: string;
 };
 
 /** What an editor asks of the sidecar. */

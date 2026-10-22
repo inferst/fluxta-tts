@@ -14,7 +14,7 @@ function setup() {
       voices: async () => [],
       synthesize: () => new Promise(() => {}),
     },
-    player: { play: async () => {} },
+    player: { devices: async () => [], play: async () => {} },
     voiceFor: async () => "voice-1",
     onDropped: () => {},
     onStarted: () => {},

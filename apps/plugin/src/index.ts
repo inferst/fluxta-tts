@@ -8,14 +8,17 @@ import { plugin } from "./plugin";
 import { DefaultsStore } from "./settings/defaults-store";
 import { createSpeakingSource } from "./sources/speaking";
 import { createWaitingSource } from "./sources/waiting";
+import { Listing } from "./speech/listing";
 import { describeDrop, SpeechQueue } from "./speech/speech-queue";
 import { Voices } from "./speech/voices";
 import { systemSpeech } from "./system";
 
 const { provider, player } = systemSpeech();
 const voices = new Voices(provider);
+// Only the editors list the devices: a play finds its own by id.
+const devices = new Listing(() => player.devices());
 const defaults = new DefaultsStore(plugin, () => void editors.publish());
-const editors = new EditorChannel(plugin, defaults, voices);
+const editors = new EditorChannel(plugin, defaults, voices, devices);
 
 const queue = new SpeechQueue({
   provider,

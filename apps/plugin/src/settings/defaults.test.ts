@@ -4,10 +4,11 @@ import { describe, expect, it } from "vitest";
 import { effectiveSettings, readDefaults } from "./defaults";
 
 describe("readDefaults", () => {
-  it("starts a fresh install at the OS's voice, 1.0×, 100 % and 200 graphemes", () => {
+  it("starts a fresh install at the OS's voice, 1.0×, 100 %, System default and 200 graphemes", () => {
     expect(readDefaults(undefined)).toEqual({
       rate: 1,
       volume: 100,
+      device: "system-default",
       lengthLimit: 200,
     });
     expect(readDefaults({})).toEqual(INITIAL_DEFAULTS);
@@ -18,6 +19,7 @@ describe("readDefaults", () => {
       voice: "com.apple.voice.compact.ru-RU.Milena",
       rate: 1.3,
       volume: 45,
+      device: { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
       lengthLimit: 500,
     };
 
@@ -38,6 +40,12 @@ describe("readDefaults", () => {
     });
   });
 
+  it("names a saved device by its id when its name is lost", () => {
+    expect(readDefaults({ device: { id: "BlackHole2ch_UID" } }).device).toEqual(
+      { id: "BlackHole2ch_UID", name: "BlackHole2ch_UID" },
+    );
+  });
+
   it("takes a whole number of graphemes as the limit", () => {
     expect(readDefaults({ lengthLimit: 150.7 }).lengthLimit).toBe(150);
   });
@@ -48,21 +56,24 @@ describe("readDefaults", () => {
         voice: "",
         rate: "fast",
         volume: Number.NaN,
+        device: { id: "" },
         lengthLimit: 0,
       }),
     ).toEqual(INITIAL_DEFAULTS);
-    expect(readDefaults({ voice: 7, lengthLimit: "none" })).toEqual(
-      INITIAL_DEFAULTS,
-    );
+    expect(
+      readDefaults({ voice: 7, device: "BlackHole 2ch", lengthLimit: "none" }),
+    ).toEqual(INITIAL_DEFAULTS);
     expect(readDefaults([1, 2])).toEqual(INITIAL_DEFAULTS);
   });
 });
 
 describe("effectiveSettings", () => {
+  const headphones = { id: "headphones-uid", name: "AirPods" };
   const defaults: Defaults = {
     voice: "milena",
     rate: 1.2,
     volume: 80,
+    device: headphones,
     lengthLimit: 200,
   };
 
@@ -77,9 +88,16 @@ describe("effectiveSettings", () => {
         voice: "ava",
         rate: 0.7,
         volume: 0,
+        device: "system-default",
         lengthLimit: 500,
       }),
-    ).toEqual({ voice: "ava", rate: 0.7, volume: 0, lengthLimit: 500 });
+    ).toEqual({
+      voice: "ava",
+      rate: 0.7,
+      volume: 0,
+      device: "system-default",
+      lengthLimit: 500,
+    });
     expect(effectiveSettings(defaults, { volume: 100 })).toEqual({
       ...defaults,
       volume: 100,
@@ -90,8 +108,26 @@ describe("effectiveSettings", () => {
     expect(effectiveSettings(INITIAL_DEFAULTS, {})).toEqual({
       rate: 1,
       volume: 100,
+      device: "system-default",
       lengthLimit: 200,
     });
+  });
+
+  it("plays on a Speak's own device, System default included", () => {
+    const blackHole = { id: "BlackHole2ch_UID", name: "BlackHole 2ch" };
+
+    expect(effectiveSettings(defaults, { device: blackHole }).device).toEqual(
+      blackHole,
+    );
+    expect(
+      effectiveSettings(defaults, { device: "system-default" }).device,
+    ).toBe("system-default");
+    expect(
+      effectiveSettings(
+        { ...defaults, device: "system-default" },
+        { device: headphones },
+      ).device,
+    ).toEqual(headphones);
   });
 
   it("gives a Speak's own length limit over a default of no limit", () => {
@@ -112,6 +148,7 @@ describe("effectiveSettings", () => {
       effectiveSettings(defaults, {
         voice: "",
         rate: "fast",
+        device: { name: "AirPods" },
         lengthLimit: -1,
       } as never),
     ).toEqual(defaults);

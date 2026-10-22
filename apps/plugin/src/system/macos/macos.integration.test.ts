@@ -2,6 +2,7 @@ import { spawn, type ChildProcess } from "node:child_process";
 
 import { describe, expect, it } from "vitest";
 
+import { PlayerError } from "../../speech/player";
 import { wavDuration } from "../../speech/wav";
 import { JxaProcess } from "./jxa-process";
 import { MacosPlayer } from "./macos-player";
@@ -56,7 +57,11 @@ describe.runIf(process.platform === "darwin")("macOS engines", () => {
     let started = 0;
     await player.play(
       audio,
-      { volume: 0, onStarted: () => (started = Date.now()) },
+      {
+        volume: 0,
+        device: "system-default",
+        onStarted: () => (started = Date.now()),
+      },
       signal(),
     );
     const ended = Date.now();
@@ -64,6 +69,42 @@ describe.runIf(process.platform === "darwin")("macOS engines", () => {
     expect(started).toBeGreaterThanOrEqual(requested);
     expect(ended - started).toBeGreaterThanOrEqual(
       wavDuration(audio) * 1000 - 50,
+    );
+  });
+
+  it("lists the output devices, the default output among them", async () => {
+    const devices = await new MacosPlayer().devices();
+
+    expect(devices.filter(({ isDefault }) => isDefault)).toHaveLength(1);
+    expect(new Set(devices.map(({ name }) => name)).size).toBe(devices.length);
+  });
+
+  it("plays on a device chosen by its UID, and reports one that is not here", async () => {
+    const provider = new MacosProvider();
+    const player = new MacosPlayer();
+    const [voice] = await provider.voices();
+    const audio = await provider.synthesize(
+      "One",
+      voice.id,
+      { rate: 2 },
+      signal(),
+    );
+    // The default output, chosen by its UID rather than followed.
+    const chosen = (await player.devices()).find(({ isDefault }) => isDefault)!;
+
+    await player.play(
+      audio,
+      { volume: 0, device: { id: chosen.id, name: chosen.name } },
+      signal(),
+    );
+    await expect(
+      player.play(
+        audio,
+        { volume: 0, device: { id: "no-such-device", name: "Gone 2ch" } },
+        signal(),
+      ),
+    ).rejects.toEqual(
+      new PlayerError("device-missing", "Gone 2ch is not connected"),
     );
   });
 
@@ -103,7 +144,11 @@ describe.runIf(process.platform === "darwin")("macOS engines", () => {
     );
     const abort = new AbortController();
 
-    const played = player.play(audio, { volume: 0 }, abort.signal);
+    const played = player.play(
+      audio,
+      { volume: 0, device: "system-default" },
+      abort.signal,
+    );
     setTimeout(
       () => abort.abort(new DOMException("Stopped", "AbortError")),
       300,

@@ -8,9 +8,17 @@ import {
   type SpeakSettings,
 } from "tts-protocol";
 
+import {
+  deviceLabel,
+  deviceOf,
+  deviceOptions,
+  deviceValue,
+  missingDevice,
+} from "../shared/devices";
+
 type Overrides = Pick<
   SpeakSettings,
-  "voice" | "rate" | "volume" | "lengthLimit"
+  "voice" | "rate" | "volume" | "device" | "lengthLimit"
 >;
 
 /** The SelectField value of "Default": the override is absent. */
@@ -34,7 +42,7 @@ export function OverrideDefaults({
   status,
 }: OverrideDefaultsProps) {
   const overridden = (
-    ["voice", "rate", "volume", "lengthLimit"] as const
+    ["voice", "rate", "volume", "device", "lengthLimit"] as const
   ).filter((key) => values[key] !== undefined).length;
   const [opened, setOpened] = useState<boolean>();
   const open = opened ?? overridden > 0;
@@ -45,6 +53,7 @@ export function OverrideDefaults({
 
   const defaults = status?.defaults;
   const defaultVoice = status?.defaultVoice;
+  const devices = status?.devices ?? [];
   const followed = (shown: string | undefined) =>
     shown === undefined ? "Default" : `Default — ${shown}`;
 
@@ -112,6 +121,34 @@ export function OverrideDefaults({
             max={VOLUME_MAX}
             placeholder={followed(defaults && `${defaults.volume}`)}
             hint="Empty follows the default."
+          />
+
+          <SelectField
+            label="Output device"
+            options={[
+              {
+                value: DEFAULT,
+                label: followed(
+                  defaults && deviceLabel(defaults.device, devices),
+                ),
+              },
+              ...deviceOptions(devices),
+            ]}
+            value={
+              values.device === undefined ? DEFAULT : deviceValue(values.device)
+            }
+            onChange={(value) =>
+              set(
+                "device",
+                value === DEFAULT
+                  ? undefined
+                  : deviceOf(value, devices, values.device),
+              )
+            }
+            missingLabel={missingDevice(values.device)}
+            loading={!status}
+            error={status?.devicesProblem}
+            hint="Headphones, for a Phrase only you should hear."
           />
 
           <NumberField

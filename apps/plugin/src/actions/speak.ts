@@ -38,7 +38,7 @@ export class SpeakAction extends StandaloneAction<SpeakSettings> {
     await this.#defaults.loaded;
     // Read now, not when the Phrase's turn comes: the Phrase is spoken as
     // the defaults stood when the Speak ran.
-    const { voice, rate, volume, lengthLimit } = effectiveSettings(
+    const { voice, rate, volume, device, lengthLimit } = effectiveSettings(
       this.#defaults.current,
       settings,
     );
@@ -49,6 +49,7 @@ export class SpeakAction extends StandaloneAction<SpeakSettings> {
         ...(voice !== undefined && { voice }),
         rate,
         volume: volume / 100,
+        device,
       },
       positionOf(settings?.position),
     );

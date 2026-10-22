@@ -1,3 +1,5 @@
+import type { OutputDevice } from "./defaults";
+
 /**
  * Where Speak puts its Phrase in the Speech Queue: `in-turn` (the end, the
  * default), `next` (ahead of every In turn Phrase, behind other Next ones) or
@@ -25,6 +27,7 @@ export type SpeakSettings = {
   rate?: number;
   /** 0–100 %. */
   volume?: number;
+  device?: OutputDevice;
   /** The most graphemes the Phrase keeps. */
   lengthLimit?: number;
 };

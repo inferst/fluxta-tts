@@ -1,5 +1,7 @@
 import type { EditorMessage, PluginMessage, PluginStatus } from "tts-protocol";
 
+import type { Listing } from "../speech/listing";
+import type { Device } from "../speech/player";
 import type { Voice } from "../speech/provider";
 import { osDefaultOf, type Voices } from "../speech/voices";
 import type { DefaultsStore } from "../settings/defaults-store";
@@ -11,26 +13,34 @@ interface EditorSender {
 
 /**
  * The sidecar's side of the editors: the Plugin Editor and every Action
- * Editor see one status — the defaults and the voices — and the Plugin
- * Editor changes the defaults through it.
+ * Editor see one status — the defaults, the voices and the output devices —
+ * and the Plugin Editor changes the defaults through it.
  */
 export class EditorChannel {
   readonly #sender: EditorSender;
   readonly #defaults: DefaultsStore;
   readonly #voices: Voices;
+  readonly #devices: Listing<Device>;
 
-  constructor(sender: EditorSender, defaults: DefaultsStore, voices: Voices) {
+  constructor(
+    sender: EditorSender,
+    defaults: DefaultsStore,
+    voices: Voices,
+    devices: Listing<Device>,
+  ) {
     this.#sender = sender;
     this.#defaults = defaults;
     this.#voices = voices;
+    this.#devices = devices;
   }
 
   async handle(message: EditorMessage): Promise<void> {
     await this.#defaults.loaded;
     switch (message.event) {
       case "get-status":
-        // An editor opening is when a newly installed voice should appear.
-        await this.publish(this.#voices.refresh());
+        // An editor opening is when a newly installed voice or a device
+        // plugged in since should appear.
+        await this.publish({ afresh: true });
         return;
       case "set-defaults":
         // The store announces the change, and every editor hears it.
@@ -40,23 +50,29 @@ export class EditorChannel {
   }
 
   /** Tells every open editor how things stand. */
-  async publish(voices: Promise<Voice[]> = this.#voices.list()): Promise<void> {
+  async publish({ afresh = false } = {}): Promise<void> {
+    const voices = afresh ? this.#voices.refresh() : this.#voices.list();
+    const devices = afresh ? this.#devices.refresh() : this.#devices.list();
     this.#sender.sendToEditor({
       event: "status",
-      status: status(this.#defaults.current, await settled(voices)),
+      status: status(
+        this.#defaults.current,
+        await settled(voices),
+        await settled(devices),
+      ),
     });
   }
 }
 
-/** The voices, or why there are none to list. */
-async function settled(
-  voices: Promise<Voice[]>,
-): Promise<{ voices: Voice[]; problem?: string }> {
+/** The list, or why there is none. */
+async function settled<T>(
+  list: Promise<T[]>,
+): Promise<{ list: T[]; problem?: string }> {
   try {
-    return { voices: await voices };
+    return { list: await list };
   } catch (error) {
     return {
-      voices: [],
+      list: [],
       problem: error instanceof Error ? error.message : String(error),
     };
   }
@@ -64,16 +80,23 @@ async function settled(
 
 function status(
   defaults: PluginStatus["defaults"],
-  { voices, problem }: { voices: Voice[]; problem?: string },
+  voices: { list: Voice[]; problem?: string },
+  devices: { list: Device[]; problem?: string },
 ): PluginStatus {
-  const id = defaults.voice ?? osDefaultOf(voices)?.id;
-  const voice = voices.find((candidate) => candidate.id === id);
+  const id = defaults.voice ?? osDefaultOf(voices.list)?.id;
+  const voice = voices.list.find((candidate) => candidate.id === id);
   return {
     defaults,
     ...(id !== undefined && {
       defaultVoice: { id, ...(voice && { name: voiceName(voice) }) },
     }),
-    voices: voiceOptions(voices),
-    ...(problem !== undefined && { voicesProblem: problem }),
+    voices: voiceOptions(voices.list),
+    ...(voices.problem !== undefined && { voicesProblem: voices.problem }),
+    devices: devices.list.map(({ id, name, isDefault }) => ({
+      id,
+      name,
+      ...(isDefault && { isDefault }),
+    })),
+    ...(devices.problem !== undefined && { devicesProblem: devices.problem }),
   };
 }

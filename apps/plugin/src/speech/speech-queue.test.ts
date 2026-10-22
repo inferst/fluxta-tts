@@ -36,7 +36,7 @@ function deferredStep(
 }
 
 function phrase(text: string, ...tags: string[]): Phrase {
-  return { text, tags, rate: 1, volume: 1 };
+  return { text, tags, rate: 1, volume: 1, device: "system-default" };
 }
 
 /**
@@ -55,6 +55,7 @@ function setup({ settleOnAbort = true } = {}) {
     },
   };
   const player: Player = {
+    devices: async () => [],
     play: (audio: Audio, { onStarted }, signal) =>
       deferredStep(new TextDecoder().decode(audio), signal, plays, {
         onStarted,
@@ -190,19 +191,26 @@ describe("SpeechQueue", () => {
     expect(syntheses.map(({ text }) => text)).toEqual(["third"]);
   });
 
-  it("speaks with the Voice it is given, at the Phrase's rate and volume", async () => {
+  it("speaks with the Voice it is given, at the Phrase's rate and volume, on its device", async () => {
     const synthesize = vi.fn(async () => new Uint8Array());
     const play = vi.fn(async () => {});
     const queue = new SpeechQueue({
       provider: { voices: async () => [], synthesize },
-      player: { play },
+      player: { devices: async () => [], play },
       voiceFor: async () => "com.apple.voice.compact.ru-RU.Milena",
       onDropped: () => {},
       onStarted: () => {},
       onFinished: () => {},
     });
 
-    queue.enqueue({ text: "Привет", tags: [], rate: 1.5, volume: 0.4 });
+    const headphones = { id: "headphones-uid", name: "AirPods" };
+    queue.enqueue({
+      text: "Привет",
+      tags: [],
+      rate: 1.5,
+      volume: 0.4,
+      device: headphones,
+    });
     await settle();
 
     expect(synthesize).toHaveBeenCalledWith(
@@ -213,7 +221,7 @@ describe("SpeechQueue", () => {
     );
     expect(play).toHaveBeenCalledWith(
       expect.any(Uint8Array),
-      { volume: 0.4, onStarted: expect.any(Function) },
+      { volume: 0.4, device: headphones, onStarted: expect.any(Function) },
       expect.any(AbortSignal),
     );
   });
@@ -306,6 +314,7 @@ describe("Phrase Started and Phrase Finished", () => {
         },
       },
       player: {
+        devices: async () => [],
         play: async (_audio, { onStarted }) => onStarted?.(),
       },
       voiceFor: async () => "voice-1",
