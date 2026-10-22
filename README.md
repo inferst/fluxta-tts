@@ -108,6 +108,20 @@ settings; on another computer a Speak left at Default speaks with that
 computer's Default Voice. A Speak that names a voice or a device this
 computer does not have shows it as _not available right now_.
 
+### Listen
+
+**Listen**, beside the voice field in the settings and in Speak's Override
+defaults, says the voice's name with the rate, volume and output device in
+the form — before you save anything. In Speak, whatever is left at Default
+follows the settings, as the Speak itself would.
+
+It never talks over a viewer: it waits for the Phrase being spoken, then goes
+ahead of the chat still waiting, and is instant when nothing is. Scenarios do
+not see it — it fires no Phrase Started or Phrase Finished, and Speaking and
+Phrases Waiting leave it out — but Stop Speech stops it like any Phrase. If
+it cannot be heard — the voice or the device is not here — the reason shows
+under the field.
+
 ### Output device
 
 The device decides who hears the speech: chat on a device OBS captures, a

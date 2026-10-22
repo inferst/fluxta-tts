@@ -144,6 +144,17 @@ Limit can be off — no limit. An engine's own limit is not this: it stays the
 Provider's `rejected`.
 _Avoid_: character limit, max length (it counts graphemes, not characters).
 
+**Listen**:
+An editor's preview of a Voice: its name — every voice can say it, and
+nothing needs translating — spoken with the form's rate, volume and Output
+Device, unsaved; on Speak, what the form leaves at Default follows Plugin
+settings. It goes through the Speech Queue as a Next Phrase, so it never
+talks over a viewer, and Stop Speech reaches it. Scenarios do not see it
+otherwise: it carries no Tags, fires neither Phrase Started nor Phrase
+Finished, and Speaking and Phrases Waiting leave it out. Its failure goes to
+the editor that asked, shown beside the button, not to the plugin's log.
+_Avoid_: preview, test, sample.
+
 ### Playback
 
 **Player**:

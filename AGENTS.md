@@ -89,7 +89,8 @@ settings/
   defaults.ts         the Defaults read warily, and a Speak's effective settings: its Overrides over them
   defaults-store.ts   the Defaults in Plugin Settings: read once, written only by the sidecar
 editors/
-  editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices — and the Plugin Editor's changes
+  editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices — the Plugin Editor's changes, and Listen
+  listen.ts           a Listen's Phrase: the Voice's name, as the form stands over the Defaults
   voice-options.ts    a Voice as the editors list it: `Milena — Russian (Russia)`, sorted
 ```
 
@@ -99,6 +100,7 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 
 - One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`; `plugin.html` is the Plugin Editor. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
 - Every editor asks the sidecar for its status (`useStatus`) and hears it again whenever the Defaults change. The Plugin Editor changes them by message, never with `setPluginSettings` of its own; a number field saves when it is left, not on every keystroke.
+- A voice field is a `VoiceField` (`shared/`), with **Listen** beside it (`useListen`). The sidecar tells every open editor, so a Listen carries the editor's own id and only its answer is taken. The Plugin Editor sends no settings: every field there is saved before a click can reach the button — a number field as the click leaves it — so the sidecar's Defaults are the form. Speak's editor sends its Overrides as they stand, unsaved.
 - An Output Device field lists System default first, then the devices in the OS's order (`shared/devices.ts`). It saves a device with its name, so one that is not here is still shown by name, as _not available right now_.
 - Editors are built from Fluxta's [UI Kit](https://fluxta.app/docs/plugins/reference/ui-kit) (`@fluxta/sdk/ui`). Text that can hold a `{{…}}` reference is a `TemplateField`.
 
@@ -111,6 +113,7 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 - **An empty Tag stops nothing.** Fluxta resolves an absent reference to `""`, so Stop Speech by Tag with nothing left after trimming does nothing at all — never Everything, which happens only when the user picks it. Speak discards an empty Tag. Tags compare exactly (`values.ts`); both Actions normalise them the same way.
 - **Every Phrase Started is followed by exactly one Phrase Finished**, however the Phrase ended — cut off by Stop Speech or a Now, or the Player failing mid-phrase. A Phrase that never started (stopped while it waited, its synthesis failed, the Player failed before any sound) fires neither. The queue enforces it: it starts a Phrase at most once, whatever the Player reports, and runs every listener so that one that throws cannot stop the queue.
 - **The sidecar is the only writer of Plugin Settings.** It reads them once, at startup — Fluxta echoes every write back, and an echo can arrive after a newer change — and the Plugin Editor asks it for a change by message. A Speak waits for that first read, then reads the Defaults as they stand when it runs: an absent Override follows its Default, and one it cannot read follows it too rather than dropping the Phrase.
+- **A Listen is out of a scenario's sight.** Its Phrase (`listen` holds the asking editor's id) waits as a Next one and Stop Speech reaches it, but the queue fires no Phrase Started or Phrase Finished for it and Speaking and Phrases Waiting leave it out. A Listen that cannot be heard is answered to its editor (`listen-failed`), not written to the log: it is not a viewer's lost Phrase.
 - **Speaking and Phrases Waiting are pulled** (`resolve: "query"`) and read the queue as it stands: a pushed value read right after a Speak would depend on whether the push had arrived.
 - **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is a `console.warn` line (`describeDrop`): the kind, the reason, the beginning of the text. A stopped Phrase is not a drop.
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.
