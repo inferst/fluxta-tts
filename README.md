@@ -6,7 +6,7 @@ It needs no account and no internet: the voices are the ones the operating
 system ships.
 
 It speaks on macOS today. Windows is on its way; until then every Phrase is
-dropped there with the reason in the plugin's log.
+dropped there, with the reason under [Recent problems](#recent-problems).
 
 ## Speak
 
@@ -32,9 +32,9 @@ A Phrase is spoken as **Settings → Text to Speech** says — see
 [Defaults](#defaults) — including the output device it plays on.
 
 A Phrase that cannot be spoken — its text comes out empty, the voice or the
-device is missing — is dropped, and the queue moves on. Each one is written to the
-plugin's log, with the reason and the beginning of its text. A restart of the
-plugin or of Fluxta drops whatever was still waiting.
+device is missing — is dropped, and the queue moves on; see
+[Recent problems](#recent-problems). A restart of the plugin or of Fluxta
+drops whatever was still waiting.
 
 Speech plays through the plugin, not through Fluxta's own sounds: **Stop
 Sound** does not stop it — **Stop Speech** does.
@@ -169,6 +169,34 @@ An **If/Else** can branch on:
 Both read the queue as it is when the condition runs. A raid that floods the
 chat can be held back with `Phrases Waiting < 10` before Speak: the count
 already includes a Phrase a Speak queued a moment before.
+
+## Recent problems
+
+The step that spoke a Phrase has long finished by the time it is dropped, so
+nothing fails in the scenario. Instead, **Settings → Text to Speech → Recent
+problems** lists the last 20 Phrases dropped since the plugin started, newest
+first: the time, the reason, and the beginning of the text, so the viewer's
+lost message can be found. The section carries a red dot while the list is
+not empty; a restart of the plugin clears it. Each one is written to the
+plugin's log too.
+
+| Reason           | What happened                                                                        |
+| ---------------- | ------------------------------------------------------------------------------------ |
+| `voice-missing`  | The voice is not on this computer — the one the Speak names, or the Default Voice.   |
+| `device-missing` | The output device is not connected, or was disconnected while speaking.              |
+| `rejected`       | The voice will not say this text — an empty one, for example.                        |
+| `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.     |
+| `unavailable`    | Speech does not work on this computer right now — Windows today, or a broken engine. |
+
+Nothing is substituted to save a Phrase: with its voice gone, a Speak is
+dropped — never spoken in another voice — until another voice is picked.
+A failure that may pass, such as the speech engine crashing, is tried once
+more before any sound is heard; a Phrase cut off mid-sound is not repeated.
+And nothing is remembered: once whatever stopped the speech is fixed, the
+next Phrase speaks, with no restart.
+
+A Listen that cannot be heard shows its reason under the voice field, not
+here.
 
 ## Development
 
