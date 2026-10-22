@@ -13,6 +13,7 @@ import { ProviderError, type Provider, type Voice } from "../speech/provider";
 import type { SpeechQueue } from "../speech/speech-queue";
 import { Voices } from "../speech/voices";
 import { EditorChannel } from "./editor-channel";
+import { RecentProblems } from "./recent-problems";
 
 const milena: Voice = {
   id: "milena",
@@ -55,12 +56,17 @@ function setup({
     () => void channel.publish(),
   );
   const enqueue = vi.fn<SpeechQueue["enqueue"]>();
+  const problems = new RecentProblems(
+    () => void channel.publish(),
+    () => 1000,
+  );
   const channel = new EditorChannel({
     sender: { sendToEditor: (message) => sent.push(message) },
     defaults,
     voices,
     devices,
     queue: { enqueue },
+    problems,
   });
   const statuses = () =>
     sent.flatMap((message) =>
@@ -70,6 +76,7 @@ function setup({
   return {
     channel,
     defaults,
+    problems,
     sent,
     statuses,
     last,
@@ -99,6 +106,7 @@ describe("EditorChannel", () => {
       ],
       // In the OS's order, as the host's Play Sound lists them.
       devices: [blackHole, speakers],
+      problems: [],
     });
   });
 
@@ -190,7 +198,24 @@ describe("EditorChannel", () => {
       voicesProblem: reason,
       devices: [],
       devicesProblem: reason,
+      problems: [],
     });
+  });
+
+  it("tells every editor of a Phrase dropped, at once", async () => {
+    const { channel, defaults, problems, last } = setup();
+    defaults.load({});
+    await channel.handle({ event: "get-status" });
+
+    const drop = {
+      kind: "device-missing",
+      reason: "BlackHole 2ch is not connected",
+      text: "Hello chat",
+    };
+    problems.add(drop);
+    await settle();
+
+    expect(last()?.problems).toEqual([{ id: 1, at: 1000, ...drop }]);
   });
 });
 

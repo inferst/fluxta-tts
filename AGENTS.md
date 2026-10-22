@@ -68,7 +68,7 @@ manifest.test.ts      the manifest declares exactly what the sidecar registers a
 speech/
   provider.ts         the Provider seam: Voice, Audio (WAV), ProviderError and its kinds
   player.ts           the Player seam: Device, Output Device, PlayerError and its kinds
-  speech-queue.ts     the Speech Queue, and the log line of a dropped Phrase
+  speech-queue.ts     the Speech Queue, and a dropped Phrase as it is told: its Drop and its log line
   listing.ts          a list looked up once and kept, and afresh when an editor opens
   voices.ts           the Provider's Voices, so kept; the OS's default voice
   truncate.ts         the Length Limit: cut at the last word boundary, counted in graphemes
@@ -89,8 +89,9 @@ settings/
   defaults.ts         the Defaults read warily, and a Speak's effective settings: its Overrides over them
   defaults-store.ts   the Defaults in Plugin Settings: read once, written only by the sidecar
 editors/
-  editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices — the Plugin Editor's changes, and Listen
+  editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices, Recent problems — the Plugin Editor's changes, and Listen
   listen.ts           a Listen's Phrase: the text typed beside the button, as the form stands over the Defaults
+  recent-problems.ts  the last 20 dropped Phrases since the plugin started, newest first
   voice-options.ts    a Voice as the editors list it: `Milena — Russian (Russia)`, sorted
 ```
 
@@ -115,7 +116,8 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 - **The sidecar is the only writer of Plugin Settings.** It reads them once, at startup — Fluxta echoes every write back, and an echo can arrive after a newer change — and the Plugin Editor asks it for a change by message. A Speak waits for that first read, then reads the Defaults as they stand when it runs: an absent Override follows its Default, and one it cannot read follows it too rather than dropping the Phrase.
 - **A Listen is out of a scenario's sight.** Its Phrase (`listen` holds the asking editor's id) waits as a Next one and Stop Speech reaches it, but the queue fires no Phrase Started or Phrase Finished for it and Speaking and Phrases Waiting leave it out. A Listen that cannot be heard is answered to its editor (`listen-failed`), not written to the log: it is not a viewer's lost Phrase.
 - **Speaking and Phrases Waiting are pulled** (`resolve: "query"`) and read the queue as it stands: a pushed value read right after a Speak would depend on whether the push had arrived.
-- **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is a `console.warn` line (`describeDrop`): the kind, the reason, the beginning of the text. A stopped Phrase is not a drop.
+- **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is told once (`dropOf`): a `console.warn` line (`describeDrop`) — the kind, the reason, the beginning of the text — and an entry in Recent problems, the Plugin Editor's section with a red dot while it is not empty. A stopped Phrase is not a drop, and a Listen's goes to its editor instead.
+- **A `transient` failure is tried once more, and only before any sound.** The queue tries the whole Phrase again — its Voice, synthesis and play — so a crashed engine starts afresh; a second failure drops it, and Stop Speech reaches it meanwhile. A Phrase whose sound has started is cut off, never repeated. Nothing about a failure is kept: no Unavailable state, no retry button — every Phrase tries afresh, so a fix outside is picked up with no restart.
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.
 - **No binary in the package.** The macOS engines are JXA scripts, run by the `osascript` every Mac ships. They are `.jxa` files bundled as strings (`jxa-text.ts`, for tsdown and vitest alike) and passed to `osascript -e` — nothing beside `index.mjs` to find at run time. They are not linted or formatted.
 - **The JXA scripts rest on undocumented behaviour**: a JS function passed where an Objective-C block is expected is called as that block, but only when the script's run loop yields — so the loop yields every 5 ms while something is under way and every second when idle. Messages are JSON lines with an `id`; the sidecar escapes everything above ASCII, because the script decodes stdin in whatever pieces arrive. A script announces `{"ready":true}`: a process that exits before that is `unavailable`, one that exits after it crashed (`transient`). `JxaProcess` starts one on first use and again after it exits; a script exits on end of stdin, so it never outlives the sidecar.

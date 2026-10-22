@@ -19,7 +19,10 @@ execution of a program. Nothing in this plugin is called a run.
 One Speak's text as accepted into the Speech Queue: what is synthesized,
 spoken, cut off and dropped. A Phrase that cannot be spoken — its Voice is
 not here, its text is empty, the engine fails — is dropped, and the queue
-moves on; nothing the user chose is substituted to save it.
+moves on; nothing the user chose is substituted to save it. A failure that
+may pass (`transient`) before any sound is tried once more; one after the
+sound started cuts the Phrase off. No failure is remembered: the next Phrase
+tries afresh.
 _Avoid_: utterance (an engine's word, `AVSpeechUtterance`), message (a chat
 message is the Platforms' word, and a deck button's Phrase is not one), sound
 (what the host's Play Sound plays).
@@ -62,6 +65,16 @@ absent reference resolves to `""`, and that must not wipe the queue. A
 stopped Phrase is not dropped: someone asked for it. One stopped while
 waiting is simply gone; one cut off while heard fires its Phrase Finished.
 _Avoid_: skip (only the Current Phrase reach), clear.
+
+**Recent problems**:
+The Plugin Editor's list of the last 20 Phrases dropped since the plugin
+started, newest first: when, the error kind with its reason, and the
+beginning of the text, so the viewer's lost message can be found. The run
+that spoke a Phrase returned long ago and a plugin cannot fail it
+(fluxta/hub#16), so this is where the streamer learns of a drop; each one is
+also a line in the plugin's log. It lives in memory, as the Speech Queue
+does. A Listen's failure is not among them: it goes to its editor.
+_Avoid_: errors, log (the plugin's log is the host's, and holds more).
 
 ### Syncing with speech
 

@@ -24,6 +24,7 @@ import { SavedNumberField } from "../shared/SavedNumberField";
 import { sendToPlugin } from "../shared/sendToPlugin";
 import { useStatus } from "../shared/useStatus";
 import { VoiceField } from "../shared/VoiceField";
+import { RecentProblems } from "./RecentProblems";
 
 /**
  * How long to wait for the sidecar before saying the plugin process itself is
@@ -62,6 +63,14 @@ export function PluginEditorApp() {
           id: "defaults",
           label: "Defaults",
           content: <DefaultsForm status={status} />,
+        },
+        {
+          id: "problems",
+          label: "Recent problems",
+          // A red dot until the plugin restarts: a dropped Phrase is a
+          // viewer's message nobody heard.
+          ...(status.problems.length > 0 && { tone: "error" as const }),
+          content: <RecentProblems problems={status.problems} />,
         },
       ]}
     />
