@@ -1,3 +1,4 @@
+import type { SpeakSettings } from "./actions";
 import type { Defaults } from "./defaults";
 
 /** A Voice as the editors list it. */
@@ -35,20 +36,56 @@ export type PluginStatus = {
   devicesProblem?: string;
 };
 
+/**
+ * The greeting a Listen says while its field is blank, and what the field
+ * starts with: English, whatever the voice — a voice of another language
+ * reads it with its own accent.
+ */
+export const LISTEN_TEXT = "Hello, chat! This is how I sound.";
+
+/**
+ * What a Listen speaks with, read as Speak's Overrides: whatever it leaves
+ * out follows the Defaults.
+ */
+export type ListenSettings = Pick<
+  SpeakSettings,
+  "voice" | "rate" | "volume" | "device"
+>;
+
 /** What an editor asks of the sidecar. */
 export type EditorMessage =
-  /** The status, with the voices looked up afresh. */
+  /** The status, with the voices and the devices looked up afresh. */
   | { event: "get-status" }
   /** Saves the Plugin Editor's defaults; the sidecar reads them warily. */
-  | { event: "set-defaults"; defaults: Defaults };
+  | { event: "set-defaults"; defaults: Defaults }
+  /**
+   * Speaks `text` — {@link LISTEN_TEXT} when it is blank — as the form
+   * stands. `id` is the editor's own, so that only it hears the answer.
+   */
+  | { event: "listen"; id: string; text: string; settings: ListenSettings };
 
-/** What the sidecar sends the editors. */
-export type PluginMessage = { event: "status"; status: PluginStatus };
+/** What the sidecar sends the editors — every open one. */
+export type PluginMessage =
+  | { event: "status"; status: PluginStatus }
+  /** The Listen `id` could not be heard, and why. */
+  | { event: "listen-failed"; id: string; problem: string };
 
 export function isEditorMessage(message: unknown): message is EditorMessage {
   if (typeof message !== "object" || message === null) {
     return false;
   }
   const { event } = message as { event?: unknown };
-  return event === "get-status" || event === "set-defaults";
+  return (
+    event === "get-status" || event === "set-defaults" || event === "listen"
+  );
+}
+
+export function isListenFailed(
+  message: unknown,
+): message is Extract<PluginMessage, { event: "listen-failed" }> {
+  return (
+    typeof message === "object" &&
+    message !== null &&
+    (message as { event?: unknown }).event === "listen-failed"
+  );
 }

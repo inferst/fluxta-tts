@@ -694,6 +694,92 @@ describe("speaking and waiting", () => {
   });
 });
 
+describe("A Listen", () => {
+  const listen = (text: string): Phrase => ({ ...phrase(text), listen: "l-1" });
+
+  it("waits for the Phrase being spoken, then goes ahead of the waiting chat", async () => {
+    const { queue, syntheses, plays } = setup();
+    queue.enqueue(phrase("chat 1"));
+    queue.enqueue(phrase("chat 2"));
+    await settle();
+    syntheses[0].finish();
+    await settle();
+    plays[0].start();
+
+    queue.enqueue(listen("Milena"), "next");
+    plays[0].finish();
+    await settle();
+    await speakCurrent(syntheses, plays, 1);
+    await speakCurrent(syntheses, plays, 2);
+
+    expect(texts(plays)).toEqual(["chat 1", "Milena", "chat 2"]);
+    expect(plays[0].signal.aborted).toBe(false);
+  });
+
+  it("is spoken at once when nothing else is", async () => {
+    const { queue, syntheses } = setup();
+
+    queue.enqueue(listen("Milena"), "next");
+    await settle();
+
+    expect(syntheses.map(({ text }) => text)).toEqual(["Milena"]);
+  });
+
+  it("is not seen by scenarios: no Events, not speaking, not waiting", async () => {
+    const { queue, syntheses, plays, events } = setup();
+
+    queue.enqueue(listen("Milena"), "next");
+    queue.enqueue(listen("Ava"), "next");
+    expect([queue.speaking, queue.waiting]).toEqual([false, 0]);
+    queue.enqueue(phrase("chat"));
+    expect([queue.speaking, queue.waiting]).toEqual([false, 1]);
+
+    await settle();
+    await speakCurrent(syntheses, plays, 0);
+    await speakCurrent(syntheses, plays, 1);
+    expect([queue.speaking, queue.waiting]).toEqual([true, 0]);
+    await speakCurrent(syntheses, plays, 2);
+
+    expect(events).toEqual(["started chat", "finished chat"]);
+  });
+
+  it("is dropped as any Phrase is, for its editor to hear why", async () => {
+    const { queue, syntheses, plays, dropped } = setup();
+    queue.enqueue(listen("Milena"), "next");
+    await settle();
+    syntheses[0].finish();
+    await settle();
+
+    plays[0].fail(
+      new PlayerError("device-missing", "BlackHole 2ch is not connected"),
+    );
+    await settle();
+
+    expect(dropped).toEqual([
+      {
+        phrase: listen("Milena"),
+        error: new PlayerError(
+          "device-missing",
+          "BlackHole 2ch is not connected",
+        ),
+      },
+    ]);
+  });
+
+  it("is stopped by Stop Speech like any Phrase", async () => {
+    const { queue, syntheses, plays } = setup();
+    queue.enqueue(listen("Milena"), "next");
+    await settle();
+    syntheses[0].finish();
+    await settle();
+    plays[0].start();
+
+    queue.stopCurrent();
+
+    expect(plays[0].signal.aborted).toBe(true);
+  });
+});
+
 describe("describeDrop", () => {
   it("names the kind, the reason and the beginning of the text", () => {
     expect(

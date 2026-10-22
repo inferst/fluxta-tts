@@ -1,10 +1,16 @@
-import { INITIAL_DEFAULTS, type PluginMessage } from "tts-protocol";
+import {
+  INITIAL_DEFAULTS,
+  LISTEN_TEXT,
+  type EditorMessage,
+  type PluginMessage,
+} from "tts-protocol";
 import { describe, expect, it, vi } from "vitest";
 
 import { DefaultsStore } from "../settings/defaults-store";
 import { Listing } from "../speech/listing";
 import { PlayerError, type Device, type Player } from "../speech/player";
 import { ProviderError, type Provider, type Voice } from "../speech/provider";
+import type { SpeechQueue } from "../speech/speech-queue";
 import { Voices } from "../speech/voices";
 import { EditorChannel } from "./editor-channel";
 
@@ -48,21 +54,29 @@ function setup({
     { setPluginSettings },
     () => void channel.publish(),
   );
-  const channel = new EditorChannel(
-    { sendToEditor: (message) => sent.push(message) },
+  const enqueue = vi.fn<SpeechQueue["enqueue"]>();
+  const channel = new EditorChannel({
+    sender: { sendToEditor: (message) => sent.push(message) },
     defaults,
     voices,
     devices,
-  );
-  const last = () => sent.at(-1)?.status;
+    queue: { enqueue },
+  });
+  const statuses = () =>
+    sent.flatMap((message) =>
+      message.event === "status" ? [message.status] : [],
+    );
+  const last = () => statuses().at(-1);
   return {
     channel,
     defaults,
     sent,
+    statuses,
     last,
     setPluginSettings,
     voicesLookUp,
     devicesLookUp,
+    enqueue,
   };
 }
 
@@ -145,7 +159,7 @@ describe("EditorChannel", () => {
   });
 
   it("answers only once the saved defaults are in", async () => {
-    const { channel, defaults, sent } = setup();
+    const { channel, defaults, sent, statuses } = setup();
 
     const answered = channel.handle({ event: "get-status" });
     await settle();
@@ -153,7 +167,7 @@ describe("EditorChannel", () => {
 
     defaults.load({ defaults: { volume: 20 } });
     await answered;
-    expect(sent[0].status.defaults.volume).toBe(20);
+    expect(statuses()[0].defaults.volume).toBe(20);
   });
 
   it("says why there are no voices or devices when the Provider or the Player cannot list them", async () => {
@@ -177,5 +191,154 @@ describe("EditorChannel", () => {
       devices: [],
       devicesProblem: reason,
     });
+  });
+});
+
+describe("Listen", () => {
+  const text = "Hello";
+
+  it("speaks the typed text as Next, as the form says, out of scenarios' sight", async () => {
+    const { channel, defaults, enqueue, sent } = setup();
+    defaults.load({});
+
+    await channel.handle({
+      event: "listen",
+      id: "l-1",
+      text: "Thanks for the follow!",
+      settings: { voice: "ava", rate: 1.5, volume: 40, device: blackHole },
+    });
+
+    expect(enqueue).toHaveBeenCalledWith(
+      {
+        text: "Thanks for the follow!",
+        tags: [],
+        voice: "ava",
+        rate: 1.5,
+        volume: 0.4,
+        device: blackHole,
+        listen: "l-1",
+      },
+      "next",
+    );
+    expect(sent).toEqual([]);
+  });
+
+  it("follows the Defaults for whatever the form leaves out — the OS's voice included", async () => {
+    const { channel, defaults, enqueue } = setup();
+    defaults.load({ defaults: { rate: 0.8, volume: 70, device: blackHole } });
+
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
+    await channel.handle({
+      event: "listen",
+      id: "l-2",
+      text,
+      settings: { device: "system-default" },
+    });
+
+    expect(enqueue.mock.calls.map(([phrase]) => phrase)).toEqual([
+      expect.objectContaining({
+        voice: "milena",
+        rate: 0.8,
+        volume: 0.7,
+        device: blackHole,
+      }),
+      expect.objectContaining({ device: "system-default" }),
+    ]);
+  });
+
+  it("hears a Plugin Editor change saved just before the click", async () => {
+    const { channel, defaults, enqueue } = setup();
+    defaults.load({});
+
+    void channel.handle({
+      event: "set-defaults",
+      defaults: { ...INITIAL_DEFAULTS, volume: 30 },
+    });
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
+
+    expect(enqueue.mock.calls[0][0].volume).toBe(0.3);
+  });
+
+  it("says the greeting when the field is blank", async () => {
+    const { channel, defaults, enqueue } = setup();
+    defaults.load({});
+
+    await channel.handle({
+      event: "listen",
+      id: "l-1",
+      text: " ",
+      settings: {},
+    });
+    // Read warily, as the settings are.
+    await channel.handle({
+      event: "listen",
+      id: "l-2",
+      settings: {},
+    } as unknown as EditorMessage);
+
+    expect(enqueue.mock.calls.map(([phrase]) => phrase.text)).toEqual([
+      LISTEN_TEXT,
+      LISTEN_TEXT,
+    ]);
+  });
+
+  it("answers the editor that asked when the Voice is not here, speaking nothing", async () => {
+    const { channel, defaults, enqueue, sent } = setup();
+    defaults.load({});
+
+    await channel.handle({
+      event: "listen",
+      id: "l-1",
+      text,
+      settings: { voice: "gone" },
+    });
+
+    expect(enqueue).not.toHaveBeenCalled();
+    expect(sent).toEqual([
+      {
+        event: "listen-failed",
+        id: "l-1",
+        problem: "This voice is not on this computer",
+      },
+    ]);
+  });
+
+  it("answers with the Provider's reason when there are no voices at all", async () => {
+    const { channel, defaults, sent } = setup({
+      lookUpVoices: async () => {
+        throw new ProviderError(
+          "unavailable",
+          "Text to Speech does not speak on Windows yet",
+        );
+      },
+    });
+    defaults.load({});
+
+    await channel.handle({ event: "listen", id: "l-1", text, settings: {} });
+
+    expect(sent).toEqual([
+      {
+        event: "listen-failed",
+        id: "l-1",
+        problem: "Text to Speech does not speak on Windows yet",
+      },
+    ]);
+  });
+
+  it("passes on why a Listen's Phrase was dropped", () => {
+    const { channel, sent } = setup();
+
+    channel.listenFailed(
+      "l-1",
+      new PlayerError("device-missing", "BlackHole 2ch is not connected"),
+    );
+
+    expect(sent).toEqual([
+      {
+        event: "listen-failed",
+        id: "l-1",
+        problem: "BlackHole 2ch is not connected",
+      },
+    ]);
   });
 });

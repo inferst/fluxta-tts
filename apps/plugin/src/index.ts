@@ -18,16 +18,31 @@ const voices = new Voices(provider);
 // Only the editors list the devices: a play finds its own by id.
 const devices = new Listing(() => player.devices());
 const defaults = new DefaultsStore(plugin, () => void editors.publish());
-const editors = new EditorChannel(plugin, defaults, voices, devices);
 
 const queue = new SpeechQueue({
   provider,
   player,
   voiceFor: async ({ voice }) => voice ?? voices.osDefault(),
-  // stderr lands in the plugin's log (`logs/tts.log` in its folder).
-  onDropped: (phrase, error) => console.warn(describeDrop(phrase, error)),
+  onDropped: (phrase, error) => {
+    if (phrase.listen !== undefined) {
+      // A Listen's failure is its editor's to show, not a viewer's lost
+      // Phrase.
+      editors.listenFailed(phrase.listen, error);
+    } else {
+      // stderr lands in the plugin's log (`logs/tts.log` in its folder).
+      console.warn(describeDrop(phrase, error));
+    }
+  },
   onStarted: () => plugin.emitEvent(PHRASE_STARTED_EVENT, {}),
   onFinished: () => plugin.emitEvent(PHRASE_FINISHED_EVENT, {}),
+});
+
+const editors = new EditorChannel({
+  sender: plugin,
+  defaults,
+  voices,
+  devices,
+  queue,
 });
 
 plugin.registerAction(new SpeakAction(queue, defaults));

@@ -49,3 +49,21 @@
 .overrides > button {
   align-self: flex-start;
 }
+
+/* A voice field, and under it what Listen says beside its button. */
+.voice-field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.with-listen {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.with-listen > :first-child {
+  flex: 1;
+  min-width: 0;
+}

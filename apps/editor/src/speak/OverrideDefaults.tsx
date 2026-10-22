@@ -15,6 +15,7 @@ import {
   deviceValue,
   missingDevice,
 } from "../shared/devices";
+import { VoiceField } from "../shared/VoiceField";
 
 type Overrides = Pick<
   SpeakSettings,
@@ -71,7 +72,7 @@ export function OverrideDefaults({
 
       {open && (
         <>
-          <SelectField
+          <VoiceField
             label="Voice"
             options={[
               {
@@ -91,6 +92,14 @@ export function OverrideDefaults({
             onChange={(voice) => set("voice", voice || undefined)}
             loading={!status}
             error={status?.voicesProblem}
+            // The Overrides as they stand, unsaved; the sidecar lays them
+            // over the Defaults.
+            listen={{
+              voice: values.voice,
+              rate: values.rate,
+              volume: values.volume,
+              device: values.device,
+            }}
           />
 
           <SelectField
