@@ -7,6 +7,7 @@ import type { Voice } from "../speech/provider";
 import type { SpeechQueue } from "../speech/speech-queue";
 import { osDefaultOf, type Voices } from "../speech/voices";
 import { listenPhrase, type ListenRequest } from "./listen";
+import type { RecentProblems } from "./recent-problems";
 import { voiceName, voiceOptions } from "./voice-options";
 
 interface EditorSender {
@@ -19,12 +20,14 @@ export type EditorChannelOptions = {
   voices: Voices;
   devices: Listing<Device>;
   queue: Pick<SpeechQueue, "enqueue">;
+  problems: Pick<RecentProblems, "list">;
 };
 
 /**
  * The sidecar's side of the editors: the Plugin Editor and every Action
- * Editor see one status — the defaults, the voices and the output devices —
- * the Plugin Editor changes the defaults through it, and either one Listens.
+ * Editor see one status — the defaults, the voices, the output devices and
+ * Recent problems — the Plugin Editor changes the defaults through it, and
+ * either one Listens.
  */
 export class EditorChannel {
   readonly #sender: EditorSender;
@@ -32,6 +35,7 @@ export class EditorChannel {
   readonly #voices: Voices;
   readonly #devices: Listing<Device>;
   readonly #queue: Pick<SpeechQueue, "enqueue">;
+  readonly #problems: Pick<RecentProblems, "list">;
 
   constructor({
     sender,
@@ -39,12 +43,14 @@ export class EditorChannel {
     voices,
     devices,
     queue,
+    problems,
   }: EditorChannelOptions) {
     this.#sender = sender;
     this.#defaults = defaults;
     this.#voices = voices;
     this.#devices = devices;
     this.#queue = queue;
+    this.#problems = problems;
   }
 
   async handle(message: EditorMessage): Promise<void> {
@@ -106,11 +112,14 @@ export class EditorChannel {
     const devices = afresh ? this.#devices.refresh() : this.#devices.list();
     this.#sender.sendToEditor({
       event: "status",
-      status: status(
-        this.#defaults.current,
-        await settled(voices),
-        await settled(devices),
-      ),
+      status: {
+        ...status(
+          this.#defaults.current,
+          await settled(voices),
+          await settled(devices),
+        ),
+        problems: this.#problems.list,
+      },
     });
   }
 }
@@ -137,7 +146,7 @@ function status(
   defaults: PluginStatus["defaults"],
   voices: { list: Voice[]; problem?: string },
   devices: { list: Device[]; problem?: string },
-): PluginStatus {
+): Omit<PluginStatus, "problems"> {
   const id = defaults.voice ?? osDefaultOf(voices.list)?.id;
   const voice = voices.list.find((candidate) => candidate.id === id);
   return {

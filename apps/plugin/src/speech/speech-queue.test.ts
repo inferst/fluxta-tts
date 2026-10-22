@@ -2,7 +2,7 @@ import { describe, expect, it, vi } from "vitest";
 
 import { PlayerError, type Player } from "./player";
 import { ProviderError, type Audio, type Provider } from "./provider";
-import { describeDrop, SpeechQueue, type Phrase } from "./speech-queue";
+import { describeDrop, dropOf, SpeechQueue, type Phrase } from "./speech-queue";
 
 /** A step the test finishes by hand: a synthesis or a play under way. */
 type Step = {
@@ -165,7 +165,9 @@ describe("SpeechQueue", () => {
     syntheses[0].finish();
     await settle();
 
-    plays[0].fail(new PlayerError("transient", "The output device changed"));
+    plays[0].fail(
+      new PlayerError("device-missing", "BlackHole 2ch is not connected"),
+    );
     await settle();
 
     expect(dropped.map(({ phrase }) => phrase.text)).toEqual(["lost"]);
@@ -267,6 +269,8 @@ describe("Phrase Started and Phrase Finished", () => {
 
     expect(events).toEqual(["started cut", "finished cut"]);
     expect(dropped.map(({ phrase }) => phrase.text)).toEqual(["cut"]);
+    // A Phrase cut off mid-sound is not heard twice.
+    expect(syntheses).toHaveLength(1);
   });
 
   it("stay silent for a Phrase that never started", async () => {
@@ -300,6 +304,29 @@ describe("Phrase Started and Phrase Finished", () => {
     plays[0].start();
 
     expect(events).toEqual(["started once", "finished once"]);
+  });
+
+  it("never start a Phrase whose play has settled, so no Phrase Started is left without its Finished", async () => {
+    const { queue, syntheses, plays, events } = setup();
+    queue.enqueue(phrase("dropped"));
+    queue.enqueue(phrase("retried"));
+    await settle();
+    syntheses[0].finish();
+    await settle();
+    plays[0].fail(new PlayerError("unavailable", "No output device"));
+    await settle();
+    plays[0].start();
+
+    syntheses[1].finish();
+    await settle();
+    plays[1].fail(new PlayerError("transient", "The output device changed"));
+    await settle();
+    // The first try reports its sound late, while the second is synthesized.
+    plays[1].start();
+    expect(events).toEqual([]);
+
+    await speakCurrent(syntheses, plays, 2);
+    expect(events).toEqual(["started retried", "finished retried"]);
   });
 
   it("keep the queue going when a listener throws", async () => {
@@ -780,14 +807,144 @@ describe("A Listen", () => {
   });
 });
 
-describe("describeDrop", () => {
-  it("names the kind, the reason and the beginning of the text", () => {
-    expect(
-      describeDrop(
-        phrase("Hello chat"),
-        new ProviderError("voice-missing", "No voice Milena on this Mac"),
+describe("A failure", () => {
+  const passing = () => new ProviderError("transient", "The engine crashed");
+
+  it("that may pass is tried once more before the sound starts, and a second one drops the Phrase", async () => {
+    const { queue, syntheses, dropped, events } = setup();
+    queue.enqueue(phrase("hello"));
+    queue.enqueue(phrase("next"));
+    await settle();
+
+    syntheses[0].fail(passing());
+    await settle();
+    expect(syntheses.map(({ text }) => text)).toEqual(["hello", "hello"]);
+    expect(dropped).toEqual([]);
+
+    const second = new ProviderError("transient", "It crashed again");
+    syntheses[1].fail(second);
+    await settle();
+
+    expect(dropped).toEqual([{ phrase: phrase("hello"), error: second }]);
+    expect(syntheses.map(({ text }) => text)).toEqual([
+      "hello",
+      "hello",
+      "next",
+    ]);
+    expect(events).toEqual([]);
+  });
+
+  it("that passed leaves the Phrase spoken as if nothing happened", async () => {
+    const { queue, syntheses, plays, dropped, events, voiceFor } = setup();
+    voiceFor.mockRejectedValueOnce(passing());
+    queue.enqueue(phrase("hello"));
+    await settle();
+
+    await speakCurrent(syntheses, plays, 0);
+
+    expect(voiceFor).toHaveBeenCalledTimes(2);
+    expect(dropped).toEqual([]);
+    expect(events).toEqual(["started hello", "finished hello"]);
+  });
+
+  it("of a play before its sound starts tries the whole Phrase again", async () => {
+    const { queue, syntheses, plays, dropped, events } = setup();
+    queue.enqueue(phrase("hello"));
+    await settle();
+    syntheses[0].finish();
+    await settle();
+
+    plays[0].fail(
+      new PlayerError(
+        "transient",
+        "The system default output switched to another device while speaking",
       ),
-    ).toBe(
+    );
+    await settle();
+    await speakCurrent(syntheses, plays, 1);
+
+    expect(plays.map(({ text }) => text)).toEqual(["hello", "hello"]);
+    expect(dropped).toEqual([]);
+    expect(events).toEqual(["started hello", "finished hello"]);
+  });
+
+  it.each([
+    new ProviderError("voice-missing", "No voice Milena on this Mac"),
+    new ProviderError("rejected", "The voice said nothing"),
+    new ProviderError("unavailable", "Speech is off"),
+    new PlayerError("device-missing", "BlackHole 2ch is not connected"),
+    new PlayerError("unavailable", "BlackHole 2ch cannot be opened"),
+    new TypeError("a bug"),
+  ])("that will not pass drops the Phrase at once: %s", async (error) => {
+    const { queue, syntheses, plays, dropped } = setup();
+    queue.enqueue(phrase("hello"));
+    await settle();
+
+    if (error instanceof PlayerError) {
+      syntheses[0].finish();
+      await settle();
+      plays[0].fail(error);
+    } else {
+      syntheses[0].fail(error);
+    }
+    await settle();
+
+    expect(dropped).toEqual([{ phrase: phrase("hello"), error }]);
+    expect(syntheses).toHaveLength(1);
+  });
+
+  it("leaves a Phrase being tried again within Stop Speech's reach", async () => {
+    const { queue, syntheses, dropped } = setup();
+    queue.enqueue(phrase("hello"));
+    await settle();
+    syntheses[0].fail(passing());
+    await settle();
+
+    queue.stopCurrent();
+    await settle();
+
+    expect(syntheses[1].signal.aborted).toBe(true);
+    expect(syntheses).toHaveLength(2);
+    expect(dropped).toEqual([]);
+  });
+
+  it("that makes the Provider unavailable is not remembered: once it recovers, Phrases are spoken again", async () => {
+    const { queue, syntheses, plays, dropped, events } = setup();
+    queue.enqueue(phrase("while it is off"));
+    queue.enqueue(phrase("once it is back"));
+    await settle();
+
+    syntheses[0].fail(new ProviderError("unavailable", "Speech is off"));
+    await settle();
+    syntheses[1].finish();
+    await settle();
+    plays[0].start();
+    plays[0].finish();
+    await settle();
+
+    expect(dropped.map(({ phrase }) => phrase.text)).toEqual([
+      "while it is off",
+    ]);
+    expect(events).toEqual([
+      "started once it is back",
+      "finished once it is back",
+    ]);
+  });
+});
+
+describe("A dropped Phrase as it is told", () => {
+  it("names the kind, the reason and the beginning of the text", () => {
+    const drop = dropOf(
+      phrase("Hello chat"),
+      new ProviderError("voice-missing", "No voice Milena on this Mac"),
+    );
+
+    expect(drop).toEqual({
+      kind: "voice-missing",
+      reason: "No voice Milena on this Mac",
+      text: "Hello chat",
+    });
+    expect(describeDrop(drop)).toBe(
       'Phrase dropped: voice-missing — No voice Milena on this Mac: "Hello chat"',
     );
   });
@@ -796,13 +953,16 @@ describe("describeDrop", () => {
     const text = `${"a".repeat(39)}👍🏽 and the rest`;
 
     expect(
-      describeDrop(phrase(text), new PlayerError("transient", "Lost")),
-    ).toBe(`Phrase dropped: transient — Lost: "${"a".repeat(39)}👍🏽…"`);
+      dropOf(phrase(text), new PlayerError("transient", "Lost")).text,
+    ).toBe(`${"a".repeat(39)}👍🏽…`);
   });
 
   it("calls an unexpected failure unavailable", () => {
-    expect(describeDrop(phrase("x"), new Error("boom"))).toBe(
-      'Phrase dropped: unavailable — boom: "x"',
-    );
+    expect(dropOf(phrase("x"), new Error("boom"))).toEqual({
+      kind: "unavailable",
+      reason: "boom",
+      text: "x",
+    });
+    expect(dropOf(phrase("x"), "boom").reason).toBe("boom");
   });
 });

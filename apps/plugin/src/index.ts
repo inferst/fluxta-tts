@@ -3,13 +3,14 @@ import { isEditorMessage } from "tts-protocol";
 import { SpeakAction } from "./actions/speak";
 import { StopSpeechAction } from "./actions/stop-speech";
 import { EditorChannel } from "./editors/editor-channel";
+import { RecentProblems } from "./editors/recent-problems";
 import { PHRASE_FINISHED_EVENT, PHRASE_STARTED_EVENT } from "./events";
 import { plugin } from "./plugin";
 import { DefaultsStore } from "./settings/defaults-store";
 import { createSpeakingSource } from "./sources/speaking";
 import { createWaitingSource } from "./sources/waiting";
 import { Listing } from "./speech/listing";
-import { describeDrop, SpeechQueue } from "./speech/speech-queue";
+import { describeDrop, dropOf, SpeechQueue } from "./speech/speech-queue";
 import { Voices } from "./speech/voices";
 import { systemSpeech } from "./system";
 
@@ -18,6 +19,7 @@ const voices = new Voices(provider);
 // Only the editors list the devices: a play finds its own by id.
 const devices = new Listing(() => player.devices());
 const defaults = new DefaultsStore(plugin, () => void editors.publish());
+const problems = new RecentProblems(() => void editors.publish());
 
 const queue = new SpeechQueue({
   provider,
@@ -29,8 +31,10 @@ const queue = new SpeechQueue({
       // Phrase.
       editors.listenFailed(phrase.listen, error);
     } else {
+      const drop = dropOf(phrase, error);
       // stderr lands in the plugin's log (`logs/tts.log` in its folder).
-      console.warn(describeDrop(phrase, error));
+      console.warn(describeDrop(drop));
+      problems.add(drop);
     }
   },
   onStarted: () => plugin.emitEvent(PHRASE_STARTED_EVENT, {}),
@@ -43,6 +47,7 @@ const editors = new EditorChannel({
   voices,
   devices,
   queue,
+  problems,
 });
 
 plugin.registerAction(new SpeakAction(queue, defaults));

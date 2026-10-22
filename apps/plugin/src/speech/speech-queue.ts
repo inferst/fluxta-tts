@@ -169,38 +169,70 @@ export class SpeechQueue {
     });
   }
 
+  /**
+   * Speaks `phrase`, trying once more after a `transient` failure — a
+   * crashed engine starts afresh — but only while no sound has started: a
+   * Phrase cut off mid-sound is not heard twice. A second failure drops it.
+   */
   async #speak(
     phrase: Phrase,
     signal: AbortSignal,
     after?: Promise<void>,
   ): Promise<void> {
-    const { provider, player, voiceFor, onDropped, onStarted, onFinished } =
-      this.#options;
-    let started = false;
-    let ended = false;
+    const { onDropped, onFinished } = this.#options;
+    const sound = { started: false };
     try {
       await after;
-      signal.throwIfAborted();
-      const voice = await voiceFor(phrase);
-      signal.throwIfAborted();
-      const audio = await provider.synthesize(
-        phrase.text,
-        voice,
-        { rate: phrase.rate },
-        signal,
-      );
+      try {
+        await this.#attempt(phrase, signal, sound);
+      } catch (error) {
+        if (signal.aborted || sound.started || !isTransient(error)) {
+          throw error;
+        }
+        await this.#attempt(phrase, signal, sound);
+      }
+    } catch (error) {
+      // A stopped Phrase was not dropped: someone asked for it.
+      if (!signal.aborted) {
+        notify(() => onDropped(phrase, error));
+      }
+    } finally {
+      if (sound.started && seen(phrase)) {
+        notify(() => onFinished(phrase));
+      }
+    }
+  }
+
+  /** One try at `phrase`: its Voice, its synthesis, its play. */
+  async #attempt(
+    phrase: Phrase,
+    signal: AbortSignal,
+    sound: { started: boolean },
+  ): Promise<void> {
+    const { provider, player, voiceFor, onStarted } = this.#options;
+    signal.throwIfAborted();
+    const voice = await voiceFor(phrase);
+    signal.throwIfAborted();
+    const audio = await provider.synthesize(
+      phrase.text,
+      voice,
+      { rate: phrase.rate },
+      signal,
+    );
+    let over = false;
+    try {
       await player.play(
         audio,
         {
           volume: phrase.volume,
           device: phrase.device,
-          // Once, and never after the play has settled — whatever the
+          // Once, and never after this play has settled — whatever the
           // Player does, a Phrase starts at most once.
           onStarted: () => {
-            if (started || ended) {
+            if (sound.started || over) {
               return;
             }
-            started = true;
+            sound.started = true;
             if (seen(phrase)) {
               notify(() => onStarted(phrase));
             }
@@ -208,16 +240,8 @@ export class SpeechQueue {
         },
         signal,
       );
-    } catch (error) {
-      // A stopped Phrase was not dropped: someone asked for it.
-      if (!signal.aborted) {
-        notify(() => onDropped(phrase, error));
-      }
     } finally {
-      ended = true;
-      if (started && seen(phrase)) {
-        notify(() => onFinished(phrase));
-      }
+      over = true;
     }
   }
 }
@@ -225,6 +249,14 @@ export class SpeechQueue {
 /** Whether scenarios see the Phrase: every one but a Listen's. */
 function seen(phrase: Phrase): boolean {
   return phrase.listen === undefined;
+}
+
+/** A failure that trying again may get past. */
+function isTransient(error: unknown): boolean {
+  return (
+    (error instanceof ProviderError || error instanceof PlayerError) &&
+    error.kind === "transient"
+  );
 }
 
 /**
@@ -240,25 +272,40 @@ function notify(listener: () => void): void {
   }
 }
 
-/** How much of a dropped Phrase's text goes into its log line. */
+/** How much of a dropped Phrase's text is told. */
 const TEXT_SHOWN = 40;
 
 /**
- * The log line for a Phrase that could not be spoken: the reason, then the
- * beginning of its text — enough to find the viewer's message that was lost.
+ * A dropped Phrase as it is told — in the log and in Recent problems: why,
+ * and the beginning of its text, enough to find the viewer's message that
+ * was lost.
  */
-export function describeDrop(phrase: Phrase, error: unknown): string {
-  const reason =
-    error instanceof ProviderError || error instanceof PlayerError
-      ? `${error.kind} — ${error.message}`
-      : `unavailable — ${error instanceof Error ? error.message : String(error)}`;
+export type Drop = {
+  /** The Provider's or the Player's error kind: `voice-missing`, `rejected`… */
+  kind: string;
+  /** What a person reads: `No voice … on this Mac`. */
+  reason: string;
+  /** The beginning of the text, `…` where it is cut. */
+  text: string;
+};
+
+export function dropOf(phrase: Phrase, error: unknown): Drop {
+  const known = error instanceof ProviderError || error instanceof PlayerError;
   const graphemes = Array.from(
     new Intl.Segmenter().segment(phrase.text),
     ({ segment }) => segment,
   );
-  const text =
-    graphemes.length > TEXT_SHOWN
-      ? `${graphemes.slice(0, TEXT_SHOWN).join("")}…`
-      : phrase.text;
-  return `Phrase dropped: ${reason}: "${text}"`;
+  return {
+    kind: known ? error.kind : "unavailable",
+    reason: error instanceof Error ? error.message : String(error),
+    text:
+      graphemes.length > TEXT_SHOWN
+        ? `${graphemes.slice(0, TEXT_SHOWN).join("")}…`
+        : phrase.text,
+  };
+}
+
+/** The log line of a dropped Phrase. */
+export function describeDrop({ kind, reason, text }: Drop): string {
+  return `Phrase dropped: ${kind} — ${reason}: "${text}"`;
 }

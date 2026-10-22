@@ -16,6 +16,23 @@ export type DeviceOption = {
   isDefault?: boolean;
 };
 
+/** How many dropped Phrases Recent problems keeps. */
+export const RECENT_PROBLEMS_KEPT = 20;
+
+/** A Phrase that could not be spoken, as Recent problems lists it. */
+export type RecentProblem = {
+  /** Unique while the plugin runs. */
+  id: number;
+  /** When it was dropped, in milliseconds since the epoch. */
+  at: number;
+  /** The Provider's or the Player's error kind: `voice-missing`, `rejected`… */
+  kind: string;
+  /** What a person reads: `No voice … on this Mac`. */
+  reason: string;
+  /** The beginning of its text, so the viewer's lost message can be found. */
+  text: string;
+};
+
 /** What the sidecar tells every open editor. */
 export type PluginStatus = {
   /** As saved in Plugin Settings. */
@@ -34,6 +51,11 @@ export type PluginStatus = {
   devices: DeviceOption[];
   /** Why there are no devices to list: the Player's reason. */
   devicesProblem?: string;
+  /**
+   * The Phrases dropped since the plugin started, newest first, at most
+   * {@link RECENT_PROBLEMS_KEPT}. A Listen's are not among them.
+   */
+  problems: RecentProblem[];
 };
 
 /**
