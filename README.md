@@ -110,10 +110,13 @@ computer does not have shows it as _not available right now_.
 
 ### Listen
 
-**Listen**, beside the voice field in the settings and in Speak's Override
-defaults, says the voice's name with the rate, volume and output device in
-the form — before you save anything. In Speak, whatever is left at Default
-follows the settings, as the Speak itself would.
+**Listen**, under the voice field in the settings and in Speak's Override
+defaults, says the text beside it with the rate, volume and output device in
+the form — before you save anything. The text starts as an English greeting,
+_Hello, chat! This is how I sound._ — type anything instead, and press Enter
+or the button; a blank field says the greeting. The text is not saved. In
+Speak, whatever is left at Default follows the settings, as the Speak itself
+would.
 
 It never talks over a viewer: it waits for the Phrase being spoken, then goes
 ahead of the chat still waiting, and is instant when nothing is. Scenarios do

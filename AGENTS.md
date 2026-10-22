@@ -90,7 +90,7 @@ settings/
   defaults-store.ts   the Defaults in Plugin Settings: read once, written only by the sidecar
 editors/
   editor-channel.ts   the status every editor sees — Defaults, Voices, Output Devices — the Plugin Editor's changes, and Listen
-  listen.ts           a Listen's Phrase: the Voice's name, as the form stands over the Defaults
+  listen.ts           a Listen's Phrase: the text typed beside the button, as the form stands over the Defaults
   voice-options.ts    a Voice as the editors list it: `Milena — Russian (Russia)`, sorted
 ```
 
@@ -100,7 +100,7 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 
 - One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`; `plugin.html` is the Plugin Editor. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
 - Every editor asks the sidecar for its status (`useStatus`) and hears it again whenever the Defaults change. The Plugin Editor changes them by message, never with `setPluginSettings` of its own; a number field saves when it is left, not on every keystroke.
-- A voice field is a `VoiceField` (`shared/`), with **Listen** beside it (`useListen`). The sidecar tells every open editor, so a Listen carries the editor's own id and only its answer is taken. The Plugin Editor sends no settings: every field there is saved before a click can reach the button — a number field as the click leaves it — so the sidecar's Defaults are the form. Speak's editor sends its Overrides as they stand, unsaved.
+- A voice field is a `VoiceField` (`shared/`), with **Listen** under it (`useListen`): a text input that starts as `LISTEN_TEXT` and is never saved, and the button. The sidecar tells every open editor, so a Listen carries the editor's own id and only its answer is taken. The Plugin Editor sends no settings: every field there is saved before a click can reach the button — a number field as the click leaves it — so the sidecar's Defaults are the form. Speak's editor sends its Overrides as they stand, unsaved.
 - An Output Device field lists System default first, then the devices in the OS's order (`shared/devices.ts`). It saves a device with its name, so one that is not here is still shown by name, as _not available right now_.
 - Editors are built from Fluxta's [UI Kit](https://fluxta.app/docs/plugins/reference/ui-kit) (`@fluxta/sdk/ui`). Text that can hold a `{{…}}` reference is a `TemplateField`.
 
