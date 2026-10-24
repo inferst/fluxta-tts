@@ -23,10 +23,38 @@ export type SystemSettings = {
 };
 
 /**
- * How an ElevenLabs voice speaks. Nothing of the plugin's own yet: the
- * voice speaks as it is set up on the ElevenLabs site.
+ * How an ElevenLabs voice speaks: through a Model, and with each setting
+ * either its own value or — absent — **Voice's own**, as the voice is set up
+ * on the ElevenLabs site.
  */
-export type ElevenLabsSettings = Record<string, never>;
+export type ElevenLabsSettings = {
+  /** ElevenLabs' `model_id`. */
+  model: string;
+  /** 0.7–1.2, 1 being the voice's normal pace. */
+  speed?: number;
+  /** 0–1. */
+  stability?: number;
+  /** 0–1: ElevenLabs' `similarity_boost`. */
+  similarity?: number;
+  /** 0–1: style exaggeration. Above 0 it adds latency. */
+  style?: number;
+  /** ElevenLabs' `use_speaker_boost`. It adds latency. */
+  speakerBoost?: boolean;
+};
+
+/** The Model a new Preset of ElevenLabs voices starts with: fast and cheap. */
+export const ELEVENLABS_DEFAULT_MODEL = "eleven_flash_v2_5";
+
+export const ELEVENLABS_SPEED_MIN = 0.7;
+export const ELEVENLABS_SPEED_MAX = 1.2;
+
+/** Every Speed the editors offer: 0.70 to 1.20 in steps of 0.05. */
+export const ELEVENLABS_SPEEDS: readonly number[] = Array.from(
+  {
+    length: Math.round((ELEVENLABS_SPEED_MAX - ELEVENLABS_SPEED_MIN) * 20) + 1,
+  },
+  (_, step) => (ELEVENLABS_SPEED_MIN * 20 + step) / 20,
+);
 
 /** Each Provider's own settings — they differ in kind, not just in range. */
 export type ProviderSettings = {
@@ -37,7 +65,7 @@ export type ProviderSettings = {
 /** The settings a new Preset of each Provider starts with. */
 export const INITIAL_SETTINGS: ProviderSettings = {
   system: { rate: 1 },
-  elevenlabs: {},
+  elevenlabs: { model: ELEVENLABS_DEFAULT_MODEL },
 };
 
 /**

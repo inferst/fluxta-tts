@@ -63,12 +63,22 @@ const PROVIDER_ERROR_KINDS: readonly string[] = [
 
 /** A Provider's failure; `message` is the reason, readable by a person. */
 export class ProviderError extends Error {
+  /**
+   * For a `transient` failure, how long to wait before trying again, in
+   * milliseconds — a cloud service's rate limit. Absent: at once.
+   */
+  readonly retryAfter?: number;
+
   constructor(
     readonly kind: ProviderErrorKind,
     reason: string,
+    { retryAfter }: { retryAfter?: number } = {},
   ) {
     super(reason);
     this.name = "ProviderError";
+    if (retryAfter !== undefined) {
+      this.retryAfter = retryAfter;
+    }
   }
 }
 

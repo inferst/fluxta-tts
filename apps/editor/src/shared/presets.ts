@@ -59,16 +59,22 @@ export function voiceLabel(
 }
 
 /**
- * A Preset in a line: its Voice, then its rate — or, for another Provider,
- * whose voices those are: `Milena — Russian (Russia) · 1.2×`,
- * `Rachel · ElevenLabs`.
+ * A Preset in a line: its Voice, then its rate — or, for ElevenLabs, whose
+ * voices those are and its Model: `Milena — Russian (Russia) · 1.2×`,
+ * `Rachel · ElevenLabs, Eleven Flash v2.5`.
  */
 export function presetSummary(
   preset: Preset,
   providers: readonly ProviderOption[],
 ): string {
   const voice = voiceLabel(preset.voice, providers);
-  return isSpokenBy(preset, SYSTEM_PROVIDER)
-    ? `${voice} · ${formatRate(preset.settings.rate)}`
-    : `${voice} · ${PROVIDER_LABELS[preset.voice.provider]}`;
+  if (isSpokenBy(preset, SYSTEM_PROVIDER)) {
+    return `${voice} · ${formatRate(preset.settings.rate)}`;
+  }
+  const { model } = preset.settings;
+  const name =
+    providers
+      .find(({ name }) => name === preset.voice.provider)
+      ?.models?.find(({ id }) => id === model)?.name ?? model;
+  return `${voice} · ${PROVIDER_LABELS[preset.voice.provider]}, ${name}`;
 }

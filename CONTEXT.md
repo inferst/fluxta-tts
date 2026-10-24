@@ -111,10 +111,15 @@ _Avoid_: Waiting alone (reads as yes or no), queue length.
 **Provider**:
 A source of Voices that turns text into audio: `system` — this computer's
 voices — and `elevenlabs` — the voices of an ElevenLabs account. Every Provider returns audio, a whole
-Phrase as WAV, and none speaks by itself: the Player plays it. It takes plain
-text, never markup, and fails as `voice-missing`, `rejected`, `unavailable`
-or `transient`. Its settings are its own — `system` has Rate — and differ
-between Providers in kind, not just in range; a Preset keeps them. Volume is
+Phrase as WAV, and none speaks by itself: the Player plays it. `system`
+takes plain text: it escapes whatever its engine would read as markup, so
+chat cannot steer it. `elevenlabs` takes the text as it is written: some
+Models act on what is in it — `[whispers]`, `<break>`, `/IPA/` — and none
+can be told not to, so the streamer accepts it by choosing the Model. Every
+Provider fails as `voice-missing`, `rejected`, `unavailable` or `transient`.
+Its settings are its own — `system` has Rate, `elevenlabs` a Model and the
+voice settings — and differ between Providers in kind, not just in range; a
+Preset keeps them. Volume is
 not among them: it is the Player's. On macOS `system` is AVSpeechSynthesizer. On Windows it
 covers both voice stores — OneCore, through WinRT, and SAPI, through COM,
 which also holds third-party voices — and a Voice's id carries its store; a
@@ -152,6 +157,21 @@ Preset cannot be deleted.
 _Avoid_: system voice (that is only what speaks before one is picked).
 
 ### ElevenLabs
+
+**Model**:
+The ElevenLabs model an ElevenLabs Preset speaks through — Flash v2.5 to
+start with, the fastest and cheapest — chosen from those ElevenLabs offers
+for text. One no longer offered drops the Phrase as `unavailable`: the
+Preset needs another.
+_Avoid_: engine, version.
+
+**Voice's own**:
+What an ElevenLabs Preset's Speed, Stability, Similarity, Style and Speaker
+boost each are until given a value: as the voice is set up on the ElevenLabs
+site. A value, like System default, not a Default level. A Preset that sets
+one sends the voice's own for the rest, so ElevenLabs is never left to fill
+one in.
+_Avoid_: default (that is Plugin settings').
 
 **API Key**:
 The secret an ElevenLabs account gives out (`sk_…`), which every request to

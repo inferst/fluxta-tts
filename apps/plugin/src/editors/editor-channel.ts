@@ -8,6 +8,7 @@ import {
 } from "tts-protocol";
 
 import type { ElevenLabsAccount } from "../elevenlabs/account";
+import type { Model } from "../elevenlabs/client";
 import type { SettingsStore } from "../settings/settings-store";
 import type { ProviderVoices } from "../settings/synthesis";
 import type { Listing, Settled } from "../speech/listing";
@@ -30,6 +31,8 @@ export type EditorChannelOptions = {
   queue: Pick<SpeechQueue, "enqueue">;
   problems: Pick<RecentProblems, "list">;
   elevenLabs: Pick<ElevenLabsAccount, "status" | "keyChanged">;
+  /** ElevenLabs' Models that speak text. */
+  models: Listing<Model>;
 };
 
 /**
@@ -46,6 +49,7 @@ export class EditorChannel {
   readonly #queue: Pick<SpeechQueue, "enqueue">;
   readonly #problems: Pick<RecentProblems, "list">;
   readonly #elevenLabs: Pick<ElevenLabsAccount, "status" | "keyChanged">;
+  readonly #models: Listing<Model>;
 
   constructor({
     sender,
@@ -55,6 +59,7 @@ export class EditorChannel {
     queue,
     problems,
     elevenLabs,
+    models,
   }: EditorChannelOptions) {
     this.#sender = sender;
     this.#settings = settings;
@@ -63,6 +68,7 @@ export class EditorChannel {
     this.#queue = queue;
     this.#problems = problems;
     this.#elevenLabs = elevenLabs;
+    this.#models = models;
   }
 
   async handle(message: EditorMessage): Promise<void> {
@@ -153,12 +159,12 @@ export class EditorChannel {
    */
   async publish({ afresh = false } = {}): Promise<void> {
     const elevenlabs = this.#voices.elevenlabs;
-    const looking =
-      afresh || elevenlabs.settled === undefined
-        ? settled(afresh ? elevenlabs.refresh() : elevenlabs.list())
-        : undefined;
+    const models = this.#models;
     const look = <T>(listing: Listing<T>) =>
       settled(afresh ? listing.refresh() : listing.list());
+    const looking = [elevenlabs, models]
+      .filter((listing) => afresh || listing.settled === undefined)
+      .map(look);
     const [system, devices] = await Promise.all([
       look(this.#voices.system),
       look(this.#devices),
@@ -170,15 +176,18 @@ export class EditorChannel {
         presets: [...this.#settings.presets],
         providers: [
           providerOption("system", system),
-          providerOption("elevenlabs", elevenlabs.settled),
+          {
+            ...providerOption("elevenlabs", elevenlabs.settled),
+            models: models.settled?.list ?? [],
+          },
         ],
         elevenLabs: this.#elevenLabs.status,
         ...deviceStatus(devices),
         problems: this.#problems.list,
       },
     });
-    if (looking) {
-      await looking;
+    if (looking.length > 0) {
+      await Promise.all(looking);
       await this.publish();
     }
   }

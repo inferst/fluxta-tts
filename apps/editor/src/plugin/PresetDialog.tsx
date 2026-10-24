@@ -17,6 +17,7 @@ import {
 } from "tts-protocol";
 
 import { ListenField } from "../shared/ListenField";
+import { ElevenLabsFields } from "./ElevenLabsFields";
 
 type PresetDialogProps = {
   open: boolean;
@@ -143,7 +144,14 @@ export function PresetDialog({
           missingLabel={(rate) => formatRate(Number(rate))}
           hint="1.0× is the voice’s normal pace."
         />
-      ) : null}
+      ) : (
+        <ElevenLabsFields
+          settings={settings.elevenlabs}
+          models={offered?.models ?? []}
+          loading={offered?.loading}
+          onChange={(elevenlabs) => setSettings({ ...settings, elevenlabs })}
+        />
+      )}
     </Dialog>
   );
 }

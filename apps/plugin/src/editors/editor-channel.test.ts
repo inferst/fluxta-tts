@@ -42,16 +42,32 @@ const chat: Preset = {
 /** The key ElevenLabs takes in these tests; any other is invalid. */
 const GOOD_KEY = "sk_good_secret";
 
-/** ElevenLabs as these tests see it: Rachel for the good key, 401 else. */
+/**
+ * ElevenLabs as these tests see it: for the good key, Rachel and two Models,
+ * one of which does not speak text; 401 for any other.
+ */
 const elevenLabsFetch = async (
-  _input: string | URL | Request,
+  input: string | URL | Request,
   init?: RequestInit,
 ) =>
   new Headers(init?.headers).get("xi-api-key") === GOOD_KEY
-    ? Response.json({
-        voices: [{ voice_id: "rachel-id", name: "Rachel" }],
-        has_more: false,
-      })
+    ? String(input).includes("/v1/models")
+      ? Response.json([
+          {
+            model_id: "eleven_flash_v2_5",
+            name: "Eleven Flash v2.5",
+            can_do_text_to_speech: true,
+          },
+          {
+            model_id: "eleven_english_sts_v2",
+            name: "Eleven English v2",
+            can_do_text_to_speech: false,
+          },
+        ])
+      : Response.json({
+          voices: [{ voice_id: "rachel-id", name: "Rachel" }],
+          has_more: false,
+        })
     : Response.json(
         { detail: { code: "invalid_api_key", message: "Invalid API key" } },
         { status: 401 },
@@ -93,13 +109,12 @@ function setup({
     onChange: () => void channel.publish(),
     report: connections,
   });
-  const elevenLabs = new ElevenLabsProvider(
-    new ElevenLabsClient({
-      key: () => settings.elevenLabsKey,
-      onOutcome: (outcome, key) => account.outcome(outcome, key),
-      fetch: vi.fn(fetchElevenLabs),
-    }),
-  );
+  const client = new ElevenLabsClient({
+    key: () => settings.elevenLabsKey,
+    onOutcome: (outcome, key) => account.outcome(outcome, key),
+    fetch: vi.fn(fetchElevenLabs),
+  });
+  const elevenLabs = new ElevenLabsProvider(client);
   const enqueue = vi.fn<SpeechQueue["enqueue"]>();
   const problems = new RecentProblems(
     () => void channel.publish(),
@@ -116,6 +131,7 @@ function setup({
     queue: { enqueue },
     problems,
     elevenLabs: account,
+    models: new Listing(() => client.models()),
   });
   const statuses = () =>
     sent.flatMap((message) =>
@@ -143,6 +159,7 @@ const noKey = {
   label: "ElevenLabs",
   voices: [],
   problem: "There is no ElevenLabs API key — add one under ElevenLabs",
+  models: [],
 };
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
@@ -298,6 +315,7 @@ describe("EditorChannel", () => {
       name: "elevenlabs",
       label: "ElevenLabs",
       voices: [{ id: "rachel-id", name: "Rachel", label: "Rachel" }],
+      models: [{ id: "eleven_flash_v2_5", name: "Eleven Flash v2.5" }],
     });
     expect(connections).toHaveBeenLastCalledWith([
       { id: "elevenlabs", title: "ElevenLabs", connected: true },
@@ -354,11 +372,12 @@ describe("EditorChannel", () => {
   });
 
   it("does not wait for ElevenLabs: this computer's voices go out at once, ElevenLabs' once it answers", async () => {
-    let answer = () => {};
+    const answers: (() => void)[] = [];
+    const answer = () => answers.forEach((give) => give());
     const { channel, settings, last } = setup({
       fetchElevenLabs: (input, init) =>
         new Promise((resolve) => {
-          answer = () => resolve(elevenLabsFetch(input, init));
+          answers.push(() => resolve(elevenLabsFetch(input, init)));
         }),
     });
     settings.load({ elevenLabs: { key: GOOD_KEY } });
@@ -372,6 +391,7 @@ describe("EditorChannel", () => {
       label: "ElevenLabs",
       voices: [],
       loading: true,
+      models: [],
     });
 
     answer();
@@ -382,9 +402,13 @@ describe("EditorChannel", () => {
   });
 
   it("asks for a failed ElevenLabs list again only when an editor opens", async () => {
-    const fetchElevenLabs = vi.fn(async () => {
+    const fetchElevenLabs = vi.fn<typeof elevenLabsFetch>(async () => {
       throw new TypeError("fetch failed");
     });
+    const voiceLookUps = () =>
+      fetchElevenLabs.mock.calls.filter(([input]) =>
+        String(input).includes("/v2/voices"),
+      ).length;
     const { channel, settings, last } = setup({ fetchElevenLabs });
     settings.load({ elevenLabs: { key: GOOD_KEY } });
 
@@ -397,10 +421,10 @@ describe("EditorChannel", () => {
       defaults: { ...INITIAL_DEFAULTS, volume: 50 },
     });
     await settle();
-    expect(fetchElevenLabs).toHaveBeenCalledOnce();
+    expect(voiceLookUps()).toBe(1);
 
     await channel.handle({ event: "get-status" });
-    expect(fetchElevenLabs).toHaveBeenCalledTimes(2);
+    expect(voiceLookUps()).toBe(2);
   });
 
   it("tells every editor of a Phrase dropped, at once", async () => {

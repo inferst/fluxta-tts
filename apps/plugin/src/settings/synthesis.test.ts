@@ -74,7 +74,7 @@ describe("synthesisOf", () => {
         id: "21m00Tcm4TlvDq8ikWAM",
         name: "Rachel",
       },
-      settings: {},
+      settings: { model: "eleven_flash_v2_5", speed: 1.1 },
     };
     const { speak, synthesize, elevenlabsSynthesize, signal } = setup([rachel]);
 
@@ -85,7 +85,7 @@ describe("synthesisOf", () => {
     expect(elevenlabsSynthesize).toHaveBeenCalledWith(
       "Привет",
       "21m00Tcm4TlvDq8ikWAM",
-      {},
+      { model: "eleven_flash_v2_5", speed: 1.1 },
       signal,
     );
     expect(synthesize).not.toHaveBeenCalled();
