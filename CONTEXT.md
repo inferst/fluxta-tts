@@ -113,8 +113,11 @@ A source of Voices that turns text into audio: `system` — this computer's
 voices — in v1, cloud services later. Every Provider returns audio, a whole
 Phrase as WAV, and none speaks by itself: the Player plays it. It takes plain
 text, never markup, and fails as `voice-missing`, `rejected`, `unavailable`
-or `transient`. On macOS `system` is AVSpeechSynthesizer; on Windows it will
-cover SAPI and OneCore. Another OS's Provider never appears.
+or `transient`. On macOS `system` is AVSpeechSynthesizer. On Windows it
+covers both voice stores — OneCore, through WinRT, and SAPI, through COM,
+which also holds third-party voices — and a Voice's id carries its store; a
+voice in both is listed once, as OneCore's. Another OS's Provider never
+appears.
 _Avoid_: Platform (a streaming service in `fluxta-platforms`, an operating
 system in the host), engine (SAPI, OneCore and AVSpeech are engines inside a
 Provider).
@@ -175,7 +178,8 @@ _Avoid_: preview, test, sample.
 **Player**:
 What plays a Provider's audio on an Output Device — one per OS, the same for
 every Provider, and the owner of volume. On macOS it is AVAudioEngine, one
-engine per device. It fails as `device-missing`, `unavailable` or
+engine per device; on Windows, SAPI's `SpeakStream`, on System default only
+so far. It fails as `device-missing`, `unavailable` or
 `transient`. Speech never passes through the host's audio, so Stop Sound,
 Sound Tags and `system.isPlaying` do not reach it.
 _Avoid_: output (the device it plays on), speaker.

@@ -5,8 +5,8 @@ computer's own voices — a viewer's chat message, a Redemption, a deck button.
 It needs no account and no internet: the voices are the ones the operating
 system ships.
 
-It speaks on macOS today. Windows is on its way; until then every Phrase is
-dropped there, with the reason under [Recent problems](#recent-problems).
+It speaks on macOS and on Windows 10 and 11 — on Windows, so far, only on
+the system default output; see [On Windows](#on-windows).
 
 ## Speak
 
@@ -128,9 +128,9 @@ under the field.
 ### Output device
 
 The device decides who hears the speech: chat on a device OBS captures, a
-Phrase for you alone in headphones. **System default** is whatever this Mac
-plays on when the Phrase starts — and if OBS captures Desktop Audio, the
-stream hears it too.
+Phrase for you alone in headphones. **System default** is whatever this
+computer plays on when the Phrase starts — and if OBS captures Desktop Audio,
+the stream hears it too. On Windows only System default can be chosen so far.
 
 A Phrase never moves to another device, so it never reaches an audience it
 was not meant for:
@@ -140,7 +140,8 @@ was not meant for:
 - a device unplugged mid-phrase cuts the Phrase off — nothing more is heard,
   on it or on the speakers — and **Phrase Finished** fires;
 - on System default, switching the Mac's output mid-phrase cuts the Phrase
-  off too; the next one plays on the new output.
+  off too; the next one plays on the new output. Windows does not watch for
+  that yet.
 
 A device plugged in while the settings are open shows up once they are
 reopened.
@@ -180,13 +181,13 @@ lost message can be found. The section carries a red dot while the list is
 not empty; a restart of the plugin clears it. Each one is written to the
 plugin's log too.
 
-| Reason           | What happened                                                                        |
-| ---------------- | ------------------------------------------------------------------------------------ |
-| `voice-missing`  | The voice is not on this computer — the one the Speak names, or the Default Voice.   |
-| `device-missing` | The output device is not connected, or was disconnected while speaking.              |
-| `rejected`       | The voice will not say this text — an empty one, for example.                        |
-| `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.     |
-| `unavailable`    | Speech does not work on this computer right now — Windows today, or a broken engine. |
+| Reason           | What happened                                                                                |
+| ---------------- | -------------------------------------------------------------------------------------------- |
+| `voice-missing`  | The voice is not on this computer — the one the Speak names, or the Default Voice.           |
+| `device-missing` | The output device is not connected, or was disconnected while speaking.                      |
+| `rejected`       | The voice will not say this text — an empty one, for example.                                |
+| `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.             |
+| `unavailable`    | Speech does not work on this computer right now — a locked-down Windows, or a broken engine. |
 
 Nothing is substituted to save a Phrase: with its voice gone, a Speak is
 dropped — never spoken in another voice — until another voice is picked.
@@ -197,6 +198,30 @@ next Phrase speaks, with no restart.
 
 A Listen that cannot be heard shows its reason under the voice field, not
 here.
+
+## On Windows
+
+The voices are the ones Windows itself has, from both of its voice stores:
+
+- the voices of **Settings → Time & language → Speech**, Pavel and Irina
+  among them;
+- older **SAPI** voices, including third-party ones such as RHVoice.
+
+A voice in both is listed once. The voice Settings speaks with is the
+Default Voice until you pick another. Russian voices appear once Russian is
+added under **Language & region** with its text-to-speech feature. Narrator's
+natural voices cannot be reached by any app.
+
+The speech runs in Windows PowerShell, which ships with Windows — nothing is
+installed. It starts with the first Phrase or the first time the settings
+open, so that first Phrase waits a second or two. On a computer locked down
+by AppLocker or WDAC, PowerShell runs in ConstrainedLanguage mode and Text to
+Speech cannot run: every Phrase is dropped with that reason.
+
+Speech plays on the system default output. Choosing another device — and
+cutting a Phrase off when its device goes away — comes next; a Speak that
+names a device, one saved on a Mac say, is dropped meanwhile rather than
+played on the default output.
 
 ## Development
 
