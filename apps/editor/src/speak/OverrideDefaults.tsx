@@ -22,8 +22,12 @@ type Overrides = Pick<
   "voice" | "rate" | "volume" | "device" | "lengthLimit"
 >;
 
-/** The SelectField value of "Default": the override is absent. */
-const DEFAULT = "";
+/**
+ * The SelectField value of "Default": the override is absent. Not "": the
+ * select reads an empty value as nothing chosen and shows its placeholder,
+ * Choose one, over the Default option. No voice, rate or device has this id.
+ */
+const DEFAULT = "@default";
 
 type OverrideDefaultsProps = {
   values: SpeakSettings;
@@ -93,7 +97,9 @@ export function OverrideDefaults({
               })),
             ]}
             value={values.voice ?? DEFAULT}
-            onChange={(voice) => set("voice", voice || undefined)}
+            onChange={(voice) =>
+              set("voice", voice === DEFAULT ? undefined : voice)
+            }
             loading={!status}
             error={status?.voicesProblem}
             // The Overrides as they stand, unsaved; the sidecar lays them
