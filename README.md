@@ -1,8 +1,9 @@
 # Fluxta Text to Speech
 
-A [Fluxta](https://fluxta.app) plugin that reads text aloud with this
-computer's own voices — a viewer's chat message, a Redemption, a deck button.
-It needs no account and no internet: the voices are the ones the operating
+A [Fluxta](https://fluxta.app) plugin that reads text aloud — a viewer's chat
+message, a Redemption, a deck button — with this computer's own voices or
+with the voices of your [ElevenLabs](#elevenlabs) account. This computer's
+voices need no account and no internet: they are the ones the operating
 system ships.
 
 It speaks on macOS and on Windows 10 and 11; see [On Windows](#on-windows)
@@ -93,14 +94,59 @@ one in a Speak's **Preset** field.
 | Setting      | What it is                                                                                                    |
 | ------------ | ------------------------------------------------------------------------------------------------------------- |
 | **Name**     | Shown wherever a Speak picks the Preset. Two Presets cannot share one.                                        |
-| **Provider** | Where the voice comes from: **This computer** — the voices the operating system ships.                        |
+| **Provider** | Where the voice comes from: **This computer** — the voices the operating system ships — or **ElevenLabs**.    |
 | **Voice**    | Every voice on this computer, by language, then name — with its quality (Enhanced, Premium) where it has one. |
 | **Rate**     | 0.5× to 2.0×; 1.0× is the voice's normal pace.                                                                |
+
+A Preset of ElevenLabs voices has settings of its own instead of Rate — see
+[ElevenLabs](#elevenlabs).
 
 A change to a Preset applies to every Speak that picks it, from the next
 Phrase on — Phrases already waiting included. Renaming one breaks nothing.
 Deleting one asks first: a Speak that still picks it drops its Phrases —
 never speaks them otherwise — until you choose another Preset.
+
+## ElevenLabs
+
+**Settings → Text to Speech → ElevenLabs** connects your ElevenLabs account:
+paste an API key from **elevenlabs.io → Developers → API Keys** and save it.
+Give the plugin a key of its own, allowed only text to speech and reading
+voices and models, with a credit limit: Fluxta keeps the key in its settings
+as it is, and the limit caps what a leak could cost. The key is never shown
+again — paste another to replace it, or remove it.
+
+The section says whether the account is connected, and Fluxta's connection
+indicator shows **ElevenLabs** while a key is stored: green while the latest
+call to ElevenLabs went through, red with a refused key, a missing
+permission, spent credits or no internet. Nothing waits for it to turn green
+— every Phrase tries afresh, so once the account is fixed the next Phrase
+speaks.
+
+A Preset with **ElevenLabs** as its Provider offers the voices in **My
+Voices** on the ElevenLabs site — add one there, then open the settings
+again — and these settings:
+
+| Setting           | What it is                                                                | At first          |
+| ----------------- | ------------------------------------------------------------------------- | ----------------- |
+| **Model**         | The ElevenLabs model it speaks through.                                   | Eleven Flash v2.5 |
+| **Speed**         | 0.70× to 1.20× of the voice's pace — ElevenLabs offers no more.           | **Voice's own**   |
+| **Stability**     | Lower is more expressive, higher more even.                               | **Voice's own**   |
+| **Similarity**    | How closely it keeps to the original voice.                               | **Voice's own**   |
+| **Style**         | Exaggerates the voice's style; above 0 it takes longer to start speaking. | **Voice's own**   |
+| **Speaker boost** | Closer to the original speaker; it takes longer to start speaking.        | **Voice's own**   |
+
+**Voice's own** is the voice as you set it up on the ElevenLabs site.
+
+> [!WARNING]
+> The text goes to ElevenLabs as it is written, and some Models act on what
+> is in it: `[whispers]` and other tags in square brackets (Eleven v3, v4),
+> `/IPA/` (v4), `<break time="3s"/>` (Flash, Multilingual v2). A viewer can
+> use them from chat. The Length limit bounds how much, and Stop Speech with
+> the viewer's Tag ends it.
+
+ElevenLabs bills every character it speaks, Listen included, and a Phrase is
+heard only once ElevenLabs has sent it back whole — a short pause before
+each one.
 
 ## Defaults
 
@@ -202,13 +248,13 @@ lost message can be found. The section carries a red dot while the list is
 not empty; a restart of the plugin clears it. Each one is written to the
 plugin's log too.
 
-| Reason           | What happened                                                                                |
-| ---------------- | -------------------------------------------------------------------------------------------- |
-| `voice-missing`  | The Preset or its voice is not on this computer — the Speak's own, or the Default Preset.    |
-| `device-missing` | The output device is not connected, or was disconnected while speaking.                      |
-| `rejected`       | The voice will not say this text — an empty one, for example.                                |
-| `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.             |
-| `unavailable`    | Speech does not work on this computer right now — a locked-down Windows, or a broken engine. |
+| Reason           | What happened                                                                                                                                              |
+| ---------------- | ---------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `voice-missing`  | The Preset or its voice is not on this computer — the Speak's own, or the Default Preset.                                                                  |
+| `device-missing` | The output device is not connected, or was disconnected while speaking.                                                                                    |
+| `rejected`       | The voice will not say this text — an empty one, for example.                                                                                              |
+| `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.                                                                           |
+| `unavailable`    | Speech does not work right now — a locked-down Windows, a broken engine, an ElevenLabs key refused or out of credits, a Model ElevenLabs no longer offers. |
 
 Nothing is substituted to save a Phrase: with its Preset or its voice gone, a
 Speak is dropped — never spoken in another voice — until another one is
