@@ -56,7 +56,17 @@ describe.runIf(process.platform === "win32")(
       const { oneCore, sapi } = await stores();
 
       for (const voice of [oneCore, sapi].filter((found) => found)) {
-        expect(await seconds("Hello, chat!", voice!)).toBeGreaterThan(0.3);
+        const audio = await provider.synthesize(
+          "Hello, chat!",
+          voice!.id,
+          { rate: 1 },
+          signal(),
+        );
+        const view = new DataView(audio.buffer, audio.byteOffset);
+        console.info(
+          `${voice!.name}: ${view.getUint32(24, true)} Hz, ${view.getUint16(22, true)} channel(s), ${view.getUint16(34, true)}-bit`,
+        );
+        expect(wavDuration(audio)).toBeGreaterThan(0.3);
       }
     });
 
