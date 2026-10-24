@@ -346,9 +346,10 @@ describe.runIf(process.platform === "win32")(
 
 /**
  * What happens when a device goes away, or the default output switches,
- * mid-phrase — by hand, as no test can unplug a device. Run with
- * `TTS_DEVICE_CHANGES=1 pnpm test windows.integration` and do what each test
- * prints. Nothing is heard: the plays are silence at volume 0.
+ * mid-phrase — by hand, as no test can unplug a device. In PowerShell:
+ * `$env:TTS_DEVICE_CHANGES = "1"`, then
+ * `pnpm --filter tts-plugin exec vitest run windows.integration`, and do what
+ * each test prints. Nothing is heard: the plays are silence at volume 0.
  */
 describe.runIf(
   process.platform === "win32" && process.env.TTS_DEVICE_CHANGES === "1",
