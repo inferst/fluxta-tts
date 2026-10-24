@@ -179,7 +179,7 @@ describe("EditorChannel", () => {
   });
 
   it("says why there are no voices or devices when the Provider or the Player cannot list them", async () => {
-    const reason = "Text to Speech does not speak on Windows yet";
+    const reason = "Text to Speech does not speak on linux";
     const { channel, defaults, last } = setup({
       lookUpVoices: async () => {
         throw new ProviderError("unavailable", reason);
@@ -333,7 +333,7 @@ describe("Listen", () => {
       lookUpVoices: async () => {
         throw new ProviderError(
           "unavailable",
-          "Text to Speech does not speak on Windows yet",
+          "Text to Speech does not speak on linux",
         );
       },
     });
@@ -345,7 +345,7 @@ describe("Listen", () => {
       {
         event: "listen-failed",
         id: "l-1",
-        problem: "Text to Speech does not speak on Windows yet",
+        problem: "Text to Speech does not speak on linux",
       },
     ]);
   });

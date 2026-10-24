@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { encodeWav, wavDuration } from "./wav";
+import { encodeWav, pcm16Wav, wavDuration } from "./wav";
 
 describe("encodeWav", () => {
   it("writes a mono 16-bit PCM WAV", () => {
@@ -32,6 +32,32 @@ describe("encodeWav", () => {
 
     expect(view.getInt16(44, true)).toBe(32_767);
     expect(view.getInt16(46, true)).toBe(-32_767);
+  });
+});
+
+describe("pcm16Wav", () => {
+  it("puts an engine's 16-bit samples behind a WAV header, as they are", () => {
+    const pcm = new Uint8Array([1, 0, 0xff, 0x7f, 0, 0x80]);
+    const wav = pcm16Wav(pcm, 22_050);
+    const view = new DataView(wav.buffer);
+
+    expect(wav.byteLength).toBe(44 + 6);
+    expect(view.getUint16(22, true)).toBe(1);
+    expect(view.getUint32(24, true)).toBe(22_050);
+    expect(view.getUint32(28, true)).toBe(44_100);
+    expect(view.getUint32(40, true)).toBe(6);
+    expect([...wav.subarray(44)]).toEqual([...pcm]);
+    expect(wavDuration(pcm16Wav(new Uint8Array(44_100), 22_050))).toBe(1);
+  });
+
+  it("writes stereo, and leaves out half a sample", () => {
+    const wav = pcm16Wav(new Uint8Array(9), 16_000, 2);
+    const view = new DataView(wav.buffer);
+
+    expect(view.getUint16(22, true)).toBe(2);
+    expect(view.getUint32(28, true)).toBe(64_000);
+    expect(view.getUint16(32, true)).toBe(4);
+    expect(view.getUint32(40, true)).toBe(8);
   });
 });
 
