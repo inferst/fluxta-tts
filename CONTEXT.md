@@ -178,9 +178,8 @@ _Avoid_: preview, test, sample.
 **Player**:
 What plays a Provider's audio on an Output Device — one per OS, the same for
 every Provider, and the owner of volume. On macOS it is AVAudioEngine, one
-engine per device; on Windows, SAPI's `SpeakStream`, on System default only
-so far. It fails as `device-missing`, `unavailable` or
-`transient`. Speech never passes through the host's audio, so Stop Sound,
+engine per device; on Windows, WinRT's MediaPlayer, one player per Phrase.
+It fails as `device-missing`, `unavailable` or `transient`. Speech never passes through the host's audio, so Stop Sound,
 Sound Tags and `system.isPlaying` do not reach it.
 _Avoid_: output (the device it plays on), speaker.
 
@@ -188,8 +187,9 @@ _Avoid_: output (the device it plays on), speaker.
 The device a Phrase plays on, which decides who hears it — chat on a device
 OBS captures, a streamer-only Phrase in headphones. Either System default or
 one device, known by the id the OS keeps for it across restarts and saved
-with its name. The Player lists them in the OS's order under the OS's names,
-as the host's Play Sound does. A Phrase never moves to another device: one
+with its name. The Player lists them in the OS's order under the names the
+OS's sound settings show — on macOS the host's Play Sound shows the same; on
+Windows it may show a shorter one. A Phrase never moves to another device: one
 that is not connected when the Phrase's turn comes drops it
 (`device-missing`), and one that goes away mid-phrase cuts it off.
 _Avoid_: output alone (reads as the Player), sink.
