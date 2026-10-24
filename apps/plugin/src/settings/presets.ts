@@ -1,5 +1,8 @@
 import {
   ELEVENLABS_PROVIDER,
+  ELEVENLABS_SPEED_MAX,
+  ELEVENLABS_SPEED_MIN,
+  type ElevenLabsSettings,
   INITIAL_SETTINGS,
   PRESET_NAME_MAX,
   presetSpeech,
@@ -73,7 +76,7 @@ export function readPresetSpeech(raw: unknown): PresetSpeech | undefined {
   }
   return voice.provider === SYSTEM_PROVIDER
     ? presetSpeech(voice, systemSettingsOf(raw.settings))
-    : presetSpeech(voice, INITIAL_SETTINGS.elevenlabs);
+    : presetSpeech(voice, elevenLabsSettingsOf(raw.settings));
 }
 
 function voiceOf(value: unknown): PresetVoice | undefined {
@@ -101,4 +104,30 @@ function systemSettingsOf(value: unknown): SystemSettings {
         ? Math.min(RATE_MAX, Math.max(RATE_MIN, rate))
         : INITIAL_SETTINGS.system.rate,
   };
+}
+
+/**
+ * Each setting it cannot read is Voice's own, and a Model it cannot read is
+ * a new Preset's: a Preset is never dropped for its settings.
+ */
+function elevenLabsSettingsOf(value: unknown): ElevenLabsSettings {
+  const settings = isRecord(value) ? value : {};
+  const within = (setting: unknown, min: number, max: number) =>
+    typeof setting === "number" && Number.isFinite(setting)
+      ? Math.min(max, Math.max(min, setting))
+      : undefined;
+  const read: ElevenLabsSettings = {
+    model: nameOf(settings.model) ?? INITIAL_SETTINGS.elevenlabs.model,
+    speed: within(settings.speed, ELEVENLABS_SPEED_MIN, ELEVENLABS_SPEED_MAX),
+    stability: within(settings.stability, 0, 1),
+    similarity: within(settings.similarity, 0, 1),
+    style: within(settings.style, 0, 1),
+    speakerBoost:
+      typeof settings.speakerBoost === "boolean"
+        ? settings.speakerBoost
+        : undefined,
+  };
+  return Object.fromEntries(
+    Object.entries(read).filter(([, setting]) => setting !== undefined),
+  ) as ElevenLabsSettings;
 }

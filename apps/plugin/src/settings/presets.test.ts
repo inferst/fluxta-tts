@@ -1,4 +1,4 @@
-import { presetProblem, type Preset } from "tts-protocol";
+import { presetProblem, type Preset, type SystemSettings } from "tts-protocol";
 import { describe, expect, it } from "vitest";
 
 import { readPresetDraft, readPresets, readPresetSpeech } from "./presets";
@@ -57,7 +57,7 @@ describe("readPresets", () => {
       { ...chat, id: "fast", settings: { rate: 9 } },
       { ...chat, id: "odd", settings: { rate: "fast" } },
       { ...chat, id: "none", settings: undefined },
-    ]).map(({ settings }) => settings.rate);
+    ]).map(({ settings }) => (settings as SystemSettings).rate);
 
     expect(rates).toEqual([0.5, 2, 1, 1]);
   });
@@ -79,17 +79,43 @@ describe("a Preset of ElevenLabs voices", () => {
       id: "21m00Tcm4TlvDq8ikWAM",
       name: "Rachel",
     },
-    settings: {},
+    settings: {
+      model: "eleven_v4",
+      speed: 1.1,
+      stability: 0.3,
+      similarity: 0.8,
+      style: 0.2,
+      speakerBoost: false,
+    },
   };
 
-  it("is read with its Voice, and settings of its own", () => {
+  it("is read with its Voice and its Model and settings", () => {
     expect(readPresets([rachel])).toEqual([rachel]);
   });
 
-  it("keeps none of another Provider's settings", () => {
+  it("has Voice's own for every setting it does not carry, and the fast Model for one it cannot read", () => {
     expect(
-      readPresets([{ ...rachel, settings: { rate: 1.5 } }])[0].settings,
-    ).toEqual({});
+      readPresets([{ ...rachel, settings: { rate: 1.5, model: 7 } }])[0]
+        .settings,
+    ).toEqual({ model: "eleven_flash_v2_5" });
+  });
+
+  it("clamps Speed to 0.7–1.2 and the rest to 0–1", () => {
+    expect(
+      readPresets([
+        {
+          ...rachel,
+          settings: {
+            model: "eleven_v4",
+            speed: 3,
+            stability: -1,
+            similarity: 2,
+            style: Number.NaN,
+            speakerBoost: "yes",
+          },
+        },
+      ])[0].settings,
+    ).toEqual({ model: "eleven_v4", speed: 1.2, stability: 0, similarity: 1 });
   });
 });
 

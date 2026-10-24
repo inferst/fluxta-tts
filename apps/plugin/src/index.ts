@@ -25,12 +25,13 @@ const elevenLabsAccount = new ElevenLabsAccount({
   onChange: () => void editors.publish(),
   report: (connections) => plugin.setConnections(connections),
 });
-const elevenLabs = new ElevenLabsProvider(
-  new ElevenLabsClient({
-    key: () => settings.elevenLabsKey,
-    onOutcome: (outcome, key) => elevenLabsAccount.outcome(outcome, key),
-  }),
-);
+const elevenLabsClient = new ElevenLabsClient({
+  key: () => settings.elevenLabsKey,
+  onOutcome: (outcome, key) => elevenLabsAccount.outcome(outcome, key),
+});
+const elevenLabs = new ElevenLabsProvider(elevenLabsClient);
+// Only the Preset dialog lists the Models: a Phrase names its own.
+const elevenLabsModels = new Listing(() => elevenLabsClient.models());
 const providers = { system, elevenlabs: elevenLabs };
 const voices: ProviderVoices = {
   system: new Voices(system),
@@ -72,6 +73,7 @@ const editors = new EditorChannel({
   queue,
   problems,
   elevenLabs: elevenLabsAccount,
+  models: elevenLabsModels,
 });
 
 plugin.registerAction(new SpeakAction(queue, settings));

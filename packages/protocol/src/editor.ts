@@ -27,6 +27,8 @@ export type ProviderOption = {
   problem?: string;
   /** Its voices have not been looked up yet: ElevenLabs takes its time. */
   loading?: boolean;
+  /** ElevenLabs' Models that speak text, as its site names them. */
+  models?: { id: string; name: string }[];
 };
 
 /** An output device as the editors list it, under the name the OS gives it. */
