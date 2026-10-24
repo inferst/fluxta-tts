@@ -1,11 +1,30 @@
 import type { SpeakSettings } from "./actions";
 import type { Defaults } from "./defaults";
+import type {
+  Preset,
+  PresetDraft,
+  PresetSpeech,
+  ProviderName,
+} from "./presets";
 
 /** A Voice as the editors list it. */
 export type VoiceOption = {
   id: string;
+  /** `Ava (Premium)`: what a Preset keeps, to show while it is not here. */
+  name: string;
   /** `Milena — Russian (Russia)`, with its quality where it has one. */
   label: string;
+};
+
+/** A Provider as the Preset dialog offers it, with its Voices. */
+export type ProviderOption = {
+  name: ProviderName;
+  /** `This computer`. */
+  label: string;
+  /** Sorted by language, then name. */
+  voices: VoiceOption[];
+  /** Why there are no voices to list: the Provider's reason. */
+  problem?: string;
 };
 
 /** An output device as the editors list it, under the name the OS gives it. */
@@ -37,16 +56,10 @@ export type RecentProblem = {
 export type PluginStatus = {
   /** As saved in Plugin Settings. */
   defaults: Defaults;
-  /**
-   * The Default Voice as it stands: the one chosen, or the OS's own until
-   * one is. `name` is absent when that voice is not on this computer.
-   * Absent altogether when there are no voices to choose from.
-   */
-  defaultVoice?: { id: string; name?: string };
-  /** Sorted by language, then name. */
-  voices: VoiceOption[];
-  /** Why there are no voices to list: the Provider's reason. */
-  voicesProblem?: string;
+  /** In the order they were made. */
+  presets: Preset[];
+  /** Every Provider a Preset can speak with. */
+  providers: ProviderOption[];
   /** In the OS's order, as the host's Play Sound lists them. */
   devices: DeviceOption[];
   /** Why there are no devices to list: the Player's reason. */
@@ -71,8 +84,11 @@ export const LISTEN_TEXT = "Hello, chat! This is how I sound.";
  */
 export type ListenSettings = Pick<
   SpeakSettings,
-  "voice" | "rate" | "volume" | "device"
->;
+  "preset" | "volume" | "device"
+> & {
+  /** A Preset dialog's form, unsaved: spoken instead of any saved Preset. */
+  speech?: PresetSpeech;
+};
 
 /** What an editor asks of the sidecar. */
 export type EditorMessage =
@@ -80,6 +96,13 @@ export type EditorMessage =
   | { event: "get-status" }
   /** Saves the Plugin Editor's defaults; the sidecar reads them warily. */
   | { event: "set-defaults"; defaults: Defaults }
+  /**
+   * Saves a Preset from its dialog: a new one without an id, the one with
+   * its id otherwise.
+   */
+  | { event: "save-preset"; preset: PresetDraft }
+  /** Deletes a Preset — never the Default Preset. */
+  | { event: "delete-preset"; id: string }
   /**
    * Speaks `text` — {@link LISTEN_TEXT} when it is blank — as the form
    * stands. `id` is the editor's own, so that only it hears the answer.
@@ -98,7 +121,11 @@ export function isEditorMessage(message: unknown): message is EditorMessage {
   }
   const { event } = message as { event?: unknown };
   return (
-    event === "get-status" || event === "set-defaults" || event === "listen"
+    event === "get-status" ||
+    event === "set-defaults" ||
+    event === "save-preset" ||
+    event === "delete-preset" ||
+    event === "listen"
   );
 }
 
