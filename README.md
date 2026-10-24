@@ -5,8 +5,8 @@ computer's own voices — a viewer's chat message, a Redemption, a deck button.
 It needs no account and no internet: the voices are the ones the operating
 system ships.
 
-It speaks on macOS and on Windows 10 and 11 — on Windows, so far, only on
-the system default output; see [On Windows](#on-windows).
+It speaks on macOS and on Windows 10 and 11; see [On Windows](#on-windows)
+for what differs there.
 
 ## Speak
 
@@ -130,7 +130,7 @@ under the field.
 The device decides who hears the speech: chat on a device OBS captures, a
 Phrase for you alone in headphones. **System default** is whatever this
 computer plays on when the Phrase starts — and if OBS captures Desktop Audio,
-the stream hears it too. On Windows only System default can be chosen so far.
+the stream hears it too.
 
 A Phrase never moves to another device, so it never reaches an audience it
 was not meant for:
@@ -139,9 +139,8 @@ was not meant for:
   the queue moves on;
 - a device unplugged mid-phrase cuts the Phrase off — nothing more is heard,
   on it or on the speakers — and **Phrase Finished** fires;
-- on System default, switching the Mac's output mid-phrase cuts the Phrase
-  off too; the next one plays on the new output. Windows does not watch for
-  that yet.
+- on System default, switching the computer's output mid-phrase cuts the
+  Phrase off too; the next one plays on the new output.
 
 A device plugged in while the settings are open shows up once they are
 reopened.
@@ -218,10 +217,10 @@ open, so that first Phrase waits a second or two. On a computer locked down
 by AppLocker or WDAC, PowerShell runs in ConstrainedLanguage mode and Text to
 Speech cannot run: every Phrase is dropped with that reason.
 
-Speech plays on the system default output. Choosing another device — and
-cutting a Phrase off when its device goes away — comes next; a Speak that
-names a device, one saved on a Mac say, is dropped meanwhile rather than
-played on the default output.
+The output devices are named as Windows' sound settings name them —
+"Speakers (Realtek(R) Audio)" — where Fluxta's own Play Sound may show a
+shorter "Speakers". A device chosen on a Mac is not here on Windows, so a
+Speak saved with one drops its Phrases until another device is picked.
 
 ## Development
 

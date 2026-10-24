@@ -18,7 +18,7 @@ import type { Engine, EngineFailure } from "./script-process";
  * How long past its own length a play may go before it counts as lost. On
  * macOS the end arrives ~50 ms after the sound, ~150 ms when the engine
  * starts cold; a play that never reports it — AVFAudio's callbacks rest on
- * undocumented JXA behaviour, SAPI's on polling — must not hold the Speech
+ * undocumented JXA behaviour, MediaPlayer's on polling — must not hold the Speech
  * Queue forever.
  */
 const END_GRACE_MS = 5000;
