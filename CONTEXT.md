@@ -17,8 +17,8 @@ execution of a program. Nothing in this plugin is called a run.
 
 **Phrase**:
 One Speak's text as accepted into the Speech Queue: what is synthesized,
-spoken, cut off and dropped. A Phrase that cannot be spoken — its Voice is
-not here, its text is empty, the engine fails — is dropped, and the queue
+spoken, cut off and dropped. A Phrase that cannot be spoken — its Preset or
+its Voice is not here, its text is empty, the engine fails — is dropped, and the queue
 moves on; nothing the user chose is substituted to save it. A failure that
 may pass (`transient`) before any sound is tried once more; one after the
 sound started cuts the Phrase off. No failure is remembered: the next Phrase
@@ -113,7 +113,9 @@ A source of Voices that turns text into audio: `system` — this computer's
 voices — in v1, cloud services later. Every Provider returns audio, a whole
 Phrase as WAV, and none speaks by itself: the Player plays it. It takes plain
 text, never markup, and fails as `voice-missing`, `rejected`, `unavailable`
-or `transient`. On macOS `system` is AVSpeechSynthesizer. On Windows it
+or `transient`. Its settings are its own — `system` has Rate — and differ
+between Providers in kind, not just in range; a Preset keeps them. Volume is
+not among them: it is the Player's. On macOS `system` is AVSpeechSynthesizer. On Windows it
 covers both voice stores — OneCore, through WinRT, and SAPI, through COM,
 which also holds third-party voices — and a Voice's id carries its store; a
 voice in both is listed once, as OneCore's. Another OS's Provider never
@@ -123,34 +125,48 @@ system in the host), engine (SAPI, OneCore and AVSpeech are engines inside a
 Provider).
 
 **Voice**:
-What Speak speaks with. It belongs to exactly one Provider and is known by
+What a Preset speaks with. It belongs to exactly one Provider and is known by
 that Provider plus its own id, which means nothing to any other Provider — so
-a Voice that is not here is reported missing, never swapped for another.
+a Voice that is not here is reported missing, never swapped for another. A
+Preset keeps it with its name, to show while it is not here.
 _Avoid_: speaker, narrator.
 
-**Default Voice**:
-The Voice a Speak uses unless it names one: chosen in Plugin settings, and
-initially the voice the OS speaks with. One level only — "Default" on Speak
-means the Default Voice, and there is no "System voice" entry that follows
-the OS.
-_Avoid_: system voice (that is only its initial value).
+**Preset**:
+A name, a Voice of one Provider and that Provider's settings — _Chat_:
+Milena at 1.2×. Made in the Plugin Editor, it is what a Speak speaks with:
+the Default Preset, or one the Speak picks. A Speak refers to it by an id a
+rename keeps, saved with its name; a Preset that is not here — deleted, or
+another computer's — drops the Phrase as `voice-missing`, never substituted.
+It is read when its Phrase's turn comes, so an edit reaches the Phrases
+already waiting. Two Presets cannot share a name.
+_Avoid_: alias (the Platforms' Alias is another name for a Command), voice
+(the Provider's), profile, persona.
+
+**Default Preset**:
+The Preset a Speak speaks with unless it picks one: chosen in Plugin
+settings. Until one is picked, the plugin speaks with the voice the OS speaks
+with, at 1.0×. One level only — "Default" on Speak means the Default Preset,
+there is no way back to the OS's voice once one is picked, and the Default
+Preset cannot be deleted.
+_Avoid_: system voice (that is only what speaks before one is picked).
 
 ### Defaults
 
 **Defaults**:
 How every Speak speaks unless it overrides it, in Plugin settings: the
-Default Voice, the rate (a multiplier, 0.5×–2×), the volume (0–100 %, the
-Player's), the Output Device and the Length Limit. A fresh install speaks
-with their initial values — the OS's voice, 1.0×, 100 %, System default,
-200 — without the Plugin Editor ever being opened. A Speak reads them when it runs, so a change applies to the
+Default Preset, the volume (0–100 %, the Player's), the Output Device and the
+Length Limit. A fresh install speaks with their initial values — no Default
+Preset, so the OS's voice at 1.0×, 100 %, System default, 200 — without the
+Plugin Editor ever being opened. A Speak reads them when it runs, so a change applies to the
 next Speak.
 
 **Override**:
-A Speak's own value for one of the Defaults. Each is either **Default**,
-which follows Plugin settings, or its own value, and all start at Default —
-so a shared scenario speaks with the Defaults of whatever computer runs it.
-Text, Position and Tags are not Overrides: they describe the Phrase, and
-have no default.
+A Speak's own value for one of the Defaults: its Preset, volume, Output
+Device or Length Limit. Each is either **Default**, which follows Plugin
+settings, or its own value, and all start at Default — so a shared scenario
+speaks with the Defaults of whatever computer runs it. A Speak has no rate of
+its own: a faster voice is another Preset. Text, Position and Tags are not
+Overrides: they describe the Phrase, and have no default.
 
 **Length Limit**:
 The most graphemes a Phrase keeps, counted after interpolation: longer text
@@ -161,10 +177,11 @@ Provider's `rejected`.
 _Avoid_: character limit, max length (it counts graphemes, not characters).
 
 **Listen**:
-An editor's preview of a Voice: the text typed beside the button — an
-English greeting when it is blank — spoken with the form's rate, volume and
-Output Device, unsaved; on Speak, what the form leaves at Default follows
-Plugin settings. The text is the editor's own: it is not saved, and no
+An editor's preview of how a Phrase will sound: the text typed beside the
+button — an English greeting when it is blank — spoken as the form stands,
+unsaved. In a Preset's dialog, its Voice and settings with the Defaults'
+volume and Output Device; on Speak, its Preset and Overrides, what it leaves
+at Default following Plugin settings. The text is the editor's own: it is not saved, and no
 Length Limit cuts it. It goes through the Speech Queue as a Next Phrase, so
 it never talks over a viewer, and Stop Speech reaches it. Scenarios do not
 see it otherwise: it carries no Tags, fires neither Phrase Started nor

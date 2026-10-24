@@ -28,11 +28,12 @@ instead of talking over itself. Speak returns as soon as its Phrase is
 queued, so the steps after it run at once, and a long Phrase is never cut
 short by Fluxta's step timeout.
 
-A Phrase is spoken as **Settings → Text to Speech** says — see
+A Phrase is spoken with the Speak's [Preset](#presets) — a voice with its
+settings — and as **Settings → Text to Speech** says otherwise — see
 [Defaults](#defaults) — including the output device it plays on.
 
-A Phrase that cannot be spoken — its text comes out empty, the voice or the
-device is missing — is dropped, and the queue moves on; see
+A Phrase that cannot be spoken — its text comes out empty, the Preset, the
+voice or the device is missing — is dropped, and the queue moves on; see
 [Recent problems](#recent-problems). A restart of the plugin or of Fluxta
 drops whatever was still waiting.
 
@@ -83,47 +84,68 @@ left off the Phrase — and **Stop Speech with an empty Tag stops nothing**, so
 an Event that misses its id never wipes the whole queue. Everything happens
 only when you choose it.
 
+## Presets
+
+A **Preset** is a voice with its settings, under a name of your own — _Chat_,
+_Announcer_. Make them in **Settings → Text to Speech → Presets**, then pick
+one in a Speak's **Preset** field.
+
+| Setting      | What it is                                                                                                    |
+| ------------ | ------------------------------------------------------------------------------------------------------------- |
+| **Name**     | Shown wherever a Speak picks the Preset. Two Presets cannot share one.                                        |
+| **Provider** | Where the voice comes from: **This computer** — the voices the operating system ships.                        |
+| **Voice**    | Every voice on this computer, by language, then name — with its quality (Enhanced, Premium) where it has one. |
+| **Rate**     | 0.5× to 2.0×; 1.0× is the voice's normal pace.                                                                |
+
+A change to a Preset applies to every Speak that picks it, from the next
+Phrase on — Phrases already waiting included. Renaming one breaks nothing.
+Deleting one asks first: a Speak that still picks it drops its Phrases —
+never speaks them otherwise — until you choose another Preset.
+
 ## Defaults
 
 **Settings → Text to Speech** holds how every Speak speaks unless it says
 otherwise:
 
-| Setting           | What it is                                                                                                    | At first                            |
-| ----------------- | ------------------------------------------------------------------------------------------------------------- | ----------------------------------- |
-| **Default Voice** | Every voice on this computer, by language, then name — with its quality (Enhanced, Premium) where it has one. | The voice macOS speaks with         |
-| **Rate**          | 0.5× to 2.0×; 1.0× is the voice's normal pace.                                                                | 1.0×                                |
-| **Volume**        | 0–100 %, no boost.                                                                                            | 100 %                               |
-| **Output device** | **System default**, then every output device, under the names Play Sound shows.                               | System default                      |
-| **Length limit**  | Longer text is cut at the last word within this many characters, and the rest is not spoken. Empty: no limit. | 200 — about 12–15 seconds of speech |
+| Setting            | What it is                                                                                                    | At first                             |
+| ------------------ | ------------------------------------------------------------------------------------------------------------- | ------------------------------------ |
+| **Default Preset** | One of the Presets.                                                                                           | The voice macOS speaks with, at 1.0× |
+| **Volume**         | 0–100 %, no boost.                                                                                            | 100 %                                |
+| **Output device**  | **System default**, then every output device, under the names Play Sound shows.                               | System default                       |
+| **Length limit**   | Longer text is cut at the last word within this many characters, and the rest is not spoken. Empty: no limit. | 200 — about 12–15 seconds of speech  |
 
 So a fresh install speaks without the settings ever being opened, and a
-change there applies to the next Speak — nothing restarts. The length limit
-counts characters as a reader sees them: an emoji or an accented letter is
-one, and is never split.
+change there applies to the next Speak — nothing restarts. Once you pick a
+Default Preset there is no going back to the computer's own voice, and the
+Default Preset cannot be deleted — make another one the Default first. The
+length limit counts characters as a reader sees them: an emoji or an
+accented letter is one, and is never split.
 
-A Speak can override any of them under **Override defaults** — a louder voice
-for a Redemption, a longer limit for paid TTS, headphones for a Phrase only
-you should hear. Each field starts at **Default**, which follows the
-settings; on another computer a Speak left at Default speaks with that
-computer's Default Voice. A Speak that names a voice or a device this
-computer does not have shows it as _not available right now_.
+A Speak picks its own Preset in its **Preset** field, and can override the
+rest under **Override defaults** — a louder voice for a Redemption, a longer
+limit for paid TTS, headphones for a Phrase only you should hear. Each field
+starts at **Default**, which follows the settings; on another computer a
+Speak left at Default speaks with that computer's Default Preset. A Speak
+that names a Preset or a device this computer does not have shows it as
+_not available right now_.
 
 ### Listen
 
-**Listen**, under the voice field in the settings and in Speak's Override
-defaults, says the text beside it with the rate, volume and output device in
-the form — before you save anything. The text starts as an English greeting,
+**Listen**, under the voice field of a Preset and under Speak's Preset
+field, says the text beside it as the form stands — the Preset's voice and
+rate, and in Speak its volume and output device — before you save anything. The text starts as an English greeting,
 _Hello, chat! This is how I sound._ — type anything instead, and press Enter
-or the button; a blank field says the greeting. The text is not saved. In
-Speak, whatever is left at Default follows the settings, as the Speak itself
-would.
+or the button; a blank field says the greeting. The text is not saved. A
+Preset's Listen plays at the default volume, on the default output device;
+in Speak, whatever is left at Default follows the settings, as the Speak
+itself would.
 
 It never talks over a viewer: it waits for the Phrase being spoken, then goes
 ahead of the chat still waiting, and is instant when nothing is. Scenarios do
 not see it — it fires no Phrase Started or Phrase Finished, and Speaking and
 Phrases Waiting leave it out — but Stop Speech stops it like any Phrase. If
-it cannot be heard — the voice or the device is not here — the reason shows
-under the field.
+it cannot be heard — the Preset, the voice or the device is not here — the
+reason shows under the field.
 
 ### Output device
 
@@ -182,21 +204,21 @@ plugin's log too.
 
 | Reason           | What happened                                                                                |
 | ---------------- | -------------------------------------------------------------------------------------------- |
-| `voice-missing`  | The voice is not on this computer — the one the Speak names, or the Default Voice.           |
+| `voice-missing`  | The Preset or its voice is not on this computer — the Speak's own, or the Default Preset.    |
 | `device-missing` | The output device is not connected, or was disconnected while speaking.                      |
 | `rejected`       | The voice will not say this text — an empty one, for example.                                |
 | `transient`      | Something failed that may pass — it failed twice, or while the Phrase was heard.             |
 | `unavailable`    | Speech does not work on this computer right now — a locked-down Windows, or a broken engine. |
 
-Nothing is substituted to save a Phrase: with its voice gone, a Speak is
-dropped — never spoken in another voice — until another voice is picked.
+Nothing is substituted to save a Phrase: with its Preset or its voice gone, a
+Speak is dropped — never spoken in another voice — until another one is
+picked.
 A failure that may pass, such as the speech engine crashing, is tried once
 more before any sound is heard; a Phrase cut off mid-sound is not repeated.
 And nothing is remembered: once whatever stopped the speech is fixed, the
 next Phrase speaks, with no restart.
 
-A Listen that cannot be heard shows its reason under the voice field, not
-here.
+A Listen that cannot be heard shows its reason under its field, not here.
 
 ## On Windows
 
@@ -206,8 +228,8 @@ The voices are the ones Windows itself has, from both of its voice stores:
   among them;
 - older **SAPI** voices, including third-party ones such as RHVoice.
 
-A voice in both is listed once. The voice Settings speaks with is the
-Default Voice until you pick another. Russian voices appear once Russian is
+A voice in both is listed once. The voice Settings speaks with speaks every
+Phrase until you pick a Default Preset. Russian voices appear once Russian is
 added under **Language & region** with its text-to-speech feature. Narrator's
 natural voices cannot be reached by any app.
 

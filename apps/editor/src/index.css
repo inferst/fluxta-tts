@@ -39,8 +39,8 @@
   line-height: 1.6;
 }
 
-/* A voice field, and under it what Listen says beside its button. */
-.voice-field {
+/* A select of what speaks, and under it what Listen says beside its button. */
+.listen-field {
   display: flex;
   flex-direction: column;
   gap: 0.5rem;

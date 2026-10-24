@@ -1,5 +1,7 @@
+import type { PresetRef, PresetSpeech } from "tts-protocol";
+
 import { PlayerError, type OutputDevice, type Player } from "./player";
-import { ProviderError, type Provider } from "./provider";
+import { ProviderError, type Audio } from "./provider";
 
 /** One Speak's text as accepted into the Speech Queue. */
 export type Phrase = {
@@ -10,10 +12,13 @@ export type Phrase = {
    * strings: a Tag nothing can address is discarded before it gets here.
    */
   tags: readonly string[];
-  /** A Voice's id, or absent for the one `voiceFor` picks. */
-  voice?: string;
-  /** A multiplier, 1 being the voice's normal pace. */
-  rate: number;
+  /**
+   * The Preset it is spoken with, read when its turn comes — absent while
+   * there is no Default Preset: the OS's voice then speaks it.
+   */
+  preset?: PresetRef;
+  /** A Preset dialog's unsaved form, spoken instead of any Preset: a Listen's. */
+  speech?: PresetSpeech;
   /** 0–1, the Player's. */
   volume: number;
   device: OutputDevice;
@@ -32,11 +37,16 @@ export type Phrase = {
  */
 export type Position = "in-turn" | "next" | "now";
 
+/**
+ * What synthesizes a Phrase: its Voice and its Provider's settings, bound to
+ * that Provider. The queue knows nothing of Presets or Providers.
+ */
+export type Synthesis = (text: string, signal: AbortSignal) => Promise<Audio>;
+
 export type SpeechQueueOptions = {
-  provider: Provider;
   player: Player;
-  /** The id of the Voice a Phrase is spoken with. */
-  voiceFor: (phrase: Phrase) => Promise<string>;
+  /** What a Phrase is spoken with, asked afresh for every try. */
+  synthesisFor: (phrase: Phrase) => Promise<Synthesis>;
   /** A Phrase that could not be spoken, and why. The queue moves on. */
   onDropped: (phrase: Phrase, error: unknown) => void;
   /** A Phrase's sound has started. Never called for a Listen. */
@@ -203,22 +213,17 @@ export class SpeechQueue {
     }
   }
 
-  /** One try at `phrase`: its Voice, its synthesis, its play. */
+  /** One try at `phrase`: its Preset, its synthesis, its play. */
   async #attempt(
     phrase: Phrase,
     signal: AbortSignal,
     sound: { started: boolean },
   ): Promise<void> {
-    const { provider, player, voiceFor, onStarted } = this.#options;
+    const { player, synthesisFor, onStarted } = this.#options;
     signal.throwIfAborted();
-    const voice = await voiceFor(phrase);
+    const synthesize = await synthesisFor(phrase);
     signal.throwIfAborted();
-    const audio = await provider.synthesize(
-      phrase.text,
-      voice,
-      { rate: phrase.rate },
-      signal,
-    );
+    const audio = await synthesize(phrase.text, signal);
     let over = false;
     try {
       await player.play(

@@ -16,20 +16,16 @@ export type Voice = {
 /** A whole Phrase as WAV — 16-bit PCM — in memory. */
 export type Audio = Uint8Array;
 
-export type SynthesisOptions = {
-  /**
-   * A multiplier: 1 is the voice's normal pace. Each Provider maps it onto
-   * its engine's own range and clamps it.
-   */
-  rate: number;
-};
-
 /**
  * A Provider: a source of Voices that turns text into audio. Every Provider
  * returns audio and none speaks by itself — the Player plays it — so a
  * Provider on this computer and one in the cloud plug in the same way.
+ *
+ * `Settings` are its own, kept by a Preset: they differ between Providers in
+ * kind, not just in range. Volume is not among them: it is the Player's, the
+ * same for every Provider.
  */
-export interface Provider {
+export interface Provider<Settings = unknown> {
   voices(): Promise<Voice[]>;
   /**
    * Turns plain text — never markup — into a whole Phrase of audio. A
@@ -40,7 +36,7 @@ export interface Provider {
   synthesize(
     text: string,
     voiceId: string,
-    options: SynthesisOptions,
+    settings: Settings,
     signal: AbortSignal,
   ): Promise<Audio>;
 }

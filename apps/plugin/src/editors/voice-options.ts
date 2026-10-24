@@ -37,7 +37,7 @@ export function languageName(tag: string): string {
 
 /**
  * Every Voice as the editors list it — `Milena — Russian (Russia)` — sorted
- * by language, then name.
+ * by language, then name. Its name alone is what a Preset keeps.
  */
 export function voiceOptions(voices: readonly Voice[]): VoiceOption[] {
   const collator = new Intl.Collator("en");
@@ -52,5 +52,9 @@ export function voiceOptions(voices: readonly Voice[]): VoiceOption[] {
         collator.compare(a.language, b.language) ||
         collator.compare(a.name, b.name),
     )
-    .map(({ id, name, language }) => ({ id, label: `${name} — ${language}` }));
+    .map(({ id, name, language }) => ({
+      id,
+      name,
+      label: `${name} — ${language}`,
+    }));
 }
