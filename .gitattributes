@@ -1,0 +1,3 @@
+# LF everywhere, Windows checkouts included: Prettier writes and checks LF,
+# and `fluxta publish` runs its check.
+* text=auto eol=lf

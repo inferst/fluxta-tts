@@ -1,3 +1,4 @@
+import { spawn } from "node:child_process";
 import { isBuiltin } from "node:module";
 
 import { defineConfig } from "tsdown";
@@ -19,5 +20,13 @@ export default defineConfig({
   // not a Node builtin gets inlined — listing packages one by one only fails
   // at runtime, on the machine that installed the plugin.
   noExternal: (id) => !isBuiltin(id),
-  onSuccess: "cd ../.. && fluxta restart || true",
+  // Links this build into a running Fluxta and restarts the plugin in it. A
+  // restart that fails — Fluxta not running — does not fail the build. Run
+  // from Node, not as a shell line ending in `|| true`: cmd.exe has no `true`.
+  onSuccess: () =>
+    new Promise<void>((resolve) => {
+      spawn("fluxta restart", { cwd: "../..", stdio: "inherit", shell: true })
+        .on("error", () => resolve())
+        .on("exit", () => resolve());
+    }),
 });

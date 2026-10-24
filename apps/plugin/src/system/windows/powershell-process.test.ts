@@ -64,9 +64,12 @@ describe("PowerShellProcess", () => {
   });
 });
 
-/** The scripts, with their comments taken out, line by line. */
+/**
+ * The scripts, with their comments taken out, line by line — CRLF ones too,
+ * as Git may check them out on Windows.
+ */
 function code(script: string): string[] {
-  return script.split("\n").map((line) => line.replace(/(^|\s)#.*$/, ""));
+  return script.split(/\r?\n/).map((line) => line.replace(/(^|\s)#.*$/, ""));
 }
 
 describe("The PowerShell scripts", () => {
