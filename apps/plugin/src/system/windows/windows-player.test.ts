@@ -4,7 +4,6 @@ import { join } from "node:path";
 
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
-import { PlayerError } from "../../speech/player";
 import { encodeWav } from "../../speech/wav";
 import { FakeEngine } from "../fake-engine";
 import { WindowsPlayer } from "./windows-player";
@@ -27,15 +26,28 @@ function setup() {
 const second = encodeWav(new Float32Array(22_050), 22_050);
 const signal = () => new AbortController().signal;
 
-describe("WindowsPlayer", () => {
-  it("offers no device but System default, so far", async () => {
-    const { engine, player } = setup();
+const SPEAKERS =
+  "\\\\?\\SWD#MMDEVAPI#{0.0.0.00000000}.{2f7e6b3c-1d4a-4e0b-9c8d-5a6b7c8d9e0f}#{e6327cad-dcec-4949-ae8a-991e976a79d2}";
+const CABLE =
+  "\\\\?\\SWD#MMDEVAPI#{0.0.0.00000000}.{8a9b0c1d-2e3f-4a5b-8c7d-9e0f1a2b3c4d}#{e6327cad-dcec-4949-ae8a-991e976a79d2}";
 
-    expect(await player.devices()).toEqual([]);
-    expect(engine.requests).toEqual([]);
+describe("WindowsPlayer", () => {
+  it("lists the endpoints the script finds, the default among them", async () => {
+    const { engine, player } = setup();
+    const devices = [
+      { id: SPEAKERS, name: "Speakers (Realtek(R) Audio)", isDefault: true },
+      { id: CABLE, name: "CABLE Input (VB-Audio Virtual Cable)" },
+    ];
+
+    const listed = player.devices();
+    const [{ id, message }] = engine.requests;
+    expect(message).toEqual({ op: "devices" });
+    engine.reply(id, { devices });
+
+    expect(await listed).toEqual(devices);
   });
 
-  it("plays on the system default output at the Phrase's volume, and reports its start and end", async () => {
+  it("plays on the default output as it stands at the Phrase's volume, and reports its start and end", async () => {
     const { engine, player } = setup();
     const onStarted = vi.fn();
 
@@ -58,24 +70,52 @@ describe("WindowsPlayer", () => {
     expect(onStarted).toHaveBeenCalledOnce();
   });
 
-  it("drops a Phrase for a chosen device, never playing it on the default output", async () => {
+  it("plays on a chosen device by its endpoint id, naming it for the script's reasons", async () => {
     const { engine, player } = setup();
 
-    await expect(
-      player.play(
-        second,
-        {
-          volume: 1,
-          device: { id: "BlackHole2ch_UID", name: "BlackHole 2ch" },
-        },
-        signal(),
-      ),
-    ).rejects.toEqual(
-      new PlayerError(
-        "device-missing",
-        "BlackHole 2ch cannot be chosen: on Windows, Text to Speech plays on the System default output only, for now",
-      ),
+    void player.play(
+      second,
+      {
+        volume: 1,
+        device: { id: CABLE, name: "CABLE Input (VB-Audio Virtual Cable)" },
+      },
+      signal(),
     );
-    expect(engine.requests).toEqual([]);
+    await vi.waitFor(() => expect(engine.requests).toHaveLength(1));
+
+    expect(engine.requests[0].message).toMatchObject({
+      op: "play",
+      device: CABLE,
+      name: "CABLE Input (VB-Audio Virtual Cable)",
+    });
+  });
+
+  it("passes on a device that went away mid-phrase as device-missing", async () => {
+    const { engine, player } = setup();
+
+    const played = player.play(
+      second,
+      {
+        volume: 1,
+        device: { id: CABLE, name: "CABLE Input (VB-Audio Virtual Cable)" },
+      },
+      signal(),
+    );
+    await vi.waitFor(() => expect(engine.requests).toHaveLength(1));
+    const [{ id }] = engine.requests;
+    engine.reply(id, { started: true });
+    engine.reply(id, {
+      error: {
+        kind: "device-missing",
+        reason:
+          "CABLE Input (VB-Audio Virtual Cable) was disconnected while speaking",
+      },
+    });
+
+    await expect(played).rejects.toMatchObject({
+      kind: "device-missing",
+      message:
+        "CABLE Input (VB-Audio Virtual Cable) was disconnected while speaking",
+    });
   });
 });

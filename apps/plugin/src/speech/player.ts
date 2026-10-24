@@ -4,7 +4,10 @@ import type { Audio } from "./provider";
 export type Device = {
   /** The OS's id for it, which persists across restarts and re-plugging. */
   id: string;
-  /** As the OS names it — the host's Play Sound shows the same. */
+  /**
+   * As the OS's sound settings name it. The host's Play Sound shows the same
+   * on macOS, and may show a shorter name on Windows.
+   */
   name: string;
   /** The OS's default output right now. */
   isDefault?: boolean;
