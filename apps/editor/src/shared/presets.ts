@@ -1,9 +1,13 @@
 import type { SelectOption } from "@fluxta/sdk/ui";
-import type {
-  Preset,
-  PresetRef,
-  PresetVoice,
-  ProviderOption,
+import {
+  formatRate,
+  isSpokenBy,
+  PROVIDER_LABELS,
+  SYSTEM_PROVIDER,
+  type Preset,
+  type PresetRef,
+  type PresetVoice,
+  type ProviderOption,
 } from "tts-protocol";
 
 /** Every Preset as a SelectField option, in the order they were made. */
@@ -52,4 +56,19 @@ export function voiceLabel(
     .find(({ name }) => name === voice.provider)
     ?.voices.find(({ id }) => id === voice.id);
   return listed ? listed.label : `${voice.name}, not available right now`;
+}
+
+/**
+ * A Preset in a line: its Voice, then its rate — or, for another Provider,
+ * whose voices those are: `Milena — Russian (Russia) · 1.2×`,
+ * `Rachel · ElevenLabs`.
+ */
+export function presetSummary(
+  preset: Preset,
+  providers: readonly ProviderOption[],
+): string {
+  const voice = voiceLabel(preset.voice, providers);
+  return isSpokenBy(preset, SYSTEM_PROVIDER)
+    ? `${voice} · ${formatRate(preset.settings.rate)}`
+    : `${voice} · ${PROVIDER_LABELS[preset.voice.provider]}`;
 }

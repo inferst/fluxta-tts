@@ -25,6 +25,8 @@ export type ProviderOption = {
   voices: VoiceOption[];
   /** Why there are no voices to list: the Provider's reason. */
   problem?: string;
+  /** Its voices have not been looked up yet: ElevenLabs takes its time. */
+  loading?: boolean;
 };
 
 /** An output device as the editors list it, under the name the OS gives it. */
@@ -37,6 +39,17 @@ export type DeviceOption = {
 
 /** How many dropped Phrases Recent problems keeps. */
 export const RECENT_PROBLEMS_KEPT = 20;
+
+/**
+ * The ElevenLabs account as the editors see it — never its API key: none
+ * stored, the first answer awaited, connected, or why not, as the latest
+ * call to ElevenLabs told.
+ */
+export type ElevenLabsStatus =
+  | { state: "no-key" }
+  | { state: "checking" }
+  | { state: "connected" }
+  | { state: "not-connected"; reason: string };
 
 /** A Phrase that could not be spoken, as Recent problems lists it. */
 export type RecentProblem = {
@@ -60,6 +73,7 @@ export type PluginStatus = {
   presets: Preset[];
   /** Every Provider a Preset can speak with. */
   providers: ProviderOption[];
+  elevenLabs: ElevenLabsStatus;
   /** In the OS's order, as the host's Play Sound lists them. */
   devices: DeviceOption[];
   /** Why there are no devices to list: the Player's reason. */
@@ -103,6 +117,9 @@ export type EditorMessage =
   | { event: "save-preset"; preset: PresetDraft }
   /** Deletes a Preset — never the Default Preset. */
   | { event: "delete-preset"; id: string }
+  /** Stores the ElevenLabs API key in place of the one stored, if any. */
+  | { event: "set-elevenlabs-key"; key: string }
+  | { event: "remove-elevenlabs-key" }
   /**
    * Speaks `text` — {@link LISTEN_TEXT} when it is blank — as the form
    * stands. `id` is the editor's own, so that only it hears the answer.
@@ -125,6 +142,8 @@ export function isEditorMessage(message: unknown): message is EditorMessage {
     event === "set-defaults" ||
     event === "save-preset" ||
     event === "delete-preset" ||
+    event === "set-elevenlabs-key" ||
+    event === "remove-elevenlabs-key" ||
     event === "listen"
   );
 }

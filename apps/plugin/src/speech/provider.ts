@@ -5,8 +5,11 @@
 export type Voice = {
   id: string;
   name: string;
-  /** A BCP 47 tag, such as `ru-RU`. */
-  language: string;
+  /**
+   * A BCP 47 tag, such as `ru-RU`. Absent for a voice that speaks whatever
+   * language its text is in — an ElevenLabs voice.
+   */
+  language?: string;
   /** Present only above the engine's standard voices. */
   quality?: "enhanced" | "premium";
   /** The voice the OS itself speaks with when none is chosen. */

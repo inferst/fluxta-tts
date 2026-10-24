@@ -110,7 +110,7 @@ _Avoid_: Waiting alone (reads as yes or no), queue length.
 
 **Provider**:
 A source of Voices that turns text into audio: `system` — this computer's
-voices — in v1, cloud services later. Every Provider returns audio, a whole
+voices — and `elevenlabs` — the voices of an ElevenLabs account. Every Provider returns audio, a whole
 Phrase as WAV, and none speaks by itself: the Player plays it. It takes plain
 text, never markup, and fails as `voice-missing`, `rejected`, `unavailable`
 or `transient`. Its settings are its own — `system` has Rate — and differ
@@ -119,7 +119,8 @@ not among them: it is the Player's. On macOS `system` is AVSpeechSynthesizer. On
 covers both voice stores — OneCore, through WinRT, and SAPI, through COM,
 which also holds third-party voices — and a Voice's id carries its store; a
 voice in both is listed once, as OneCore's. Another OS's Provider never
-appears.
+appears. `elevenlabs` lists the account's My Voices, which the ElevenLabs
+site manages, by name: they speak whatever language their text is in.
 _Avoid_: Platform (a streaming service in `fluxta-platforms`, an operating
 system in the host), engine (SAPI, OneCore and AVSpeech are engines inside a
 Provider).
@@ -149,6 +150,28 @@ with, at 1.0×. One level only — "Default" on Speak means the Default Preset,
 there is no way back to the OS's voice once one is picked, and the Default
 Preset cannot be deleted.
 _Avoid_: system voice (that is only what speaks before one is picked).
+
+### ElevenLabs
+
+**API Key**:
+The secret an ElevenLabs account gives out (`sk_…`), which every request to
+ElevenLabs carries. Kept only in Plugin settings: an editor sees whether one
+is stored, never the key, and no log line or error message ever contains it.
+Saving the field blank keeps the stored one. A key of its own for the
+plugin, allowed only what it needs and with a credit limit set on the site,
+caps what a leak could cost.
+_Avoid_: token, password.
+
+**ElevenLabs (External Connection)**:
+The plugin's External Connection, shown in the host's indicator only while
+an API Key is stored and once a call has answered: connected or not as the
+latest call to ElevenLabs said — the check when the plugin starts, when the
+key is saved and when an editor opens, or a Phrase. A refused key, a missing
+permission, spent credits or no way through to ElevenLabs make it not
+connected; a rate limit, a missing voice or a refused text say nothing of
+the account. A display, not a gate: nothing is refused because of it, and
+nothing checks it on a timer.
+_Avoid_: status (the host's glossary avoids it), account health.
 
 ### Defaults
 

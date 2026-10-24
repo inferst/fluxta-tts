@@ -1,10 +1,21 @@
-import { LISTEN_TEXT, type Defaults, type EditorMessage } from "tts-protocol";
+import {
+  LISTEN_TEXT,
+  type Defaults,
+  type EditorMessage,
+  type ProviderName,
+} from "tts-protocol";
 
 import { effectiveSettings } from "../settings/defaults";
 import { readPresetSpeech } from "../settings/presets";
 import { speechOf, type SynthesisSources } from "../settings/synthesis";
 import { ProviderError } from "../speech/provider";
 import type { Phrase } from "../speech/speech-queue";
+
+/** Why a Listen's Voice cannot be heard: its Provider does not list it. */
+const MISSING: Record<ProviderName, string> = {
+  system: "This voice is not on this computer",
+  elevenlabs: "This voice is not among your ElevenLabs voices",
+};
 
 export type ListenRequest = Omit<
   Extract<EditorMessage, { event: "listen" }>,
@@ -30,14 +41,11 @@ export async function listenPhrase(
   }
   // Answered before the Listen waits its turn, not once it comes.
   const { voice } = await speechOf({ preset, speech }, sources);
-  const found = (await sources.voices.list()).some(
+  const found = (await sources.voices[voice.provider].list()).some(
     (candidate) => candidate.id === voice.id,
   );
   if (!found) {
-    throw new ProviderError(
-      "voice-missing",
-      "This voice is not on this computer",
-    );
+    throw new ProviderError("voice-missing", MISSING[voice.provider]);
   }
   return {
     text: text.trim() || LISTEN_TEXT,

@@ -1,38 +1,52 @@
 import {
-  INITIAL_SYSTEM_SETTINGS,
+  INITIAL_SETTINGS,
+  isSpokenBy,
+  presetSpeech,
   SYSTEM_PROVIDER,
   type Preset,
   type PresetSpeech,
-  type SystemSettings,
+  type ProviderName,
+  type ProviderSettings,
 } from "tts-protocol";
 
-import { ProviderError, type Provider } from "../speech/provider";
+import type { Listing } from "../speech/listing";
+import { ProviderError, type Provider, type Voice } from "../speech/provider";
 import type { Phrase, Synthesis } from "../speech/speech-queue";
 import type { Voices } from "../speech/voices";
 
 /** Every Provider a Preset can speak with, by the name a Voice gives. */
-export type Providers = { system: Provider<SystemSettings> };
+export type Providers = {
+  [P in ProviderName]: Provider<ProviderSettings[P]>;
+};
+
+/** Each Provider's Voices, looked up once and kept. */
+export type ProviderVoices = {
+  /** The OS's voice among them speaks while there is no Default Preset. */
+  system: Voices;
+  elevenlabs: Listing<Voice>;
+};
 
 /** What turns a Phrase's Preset into its synthesis. */
 export type SynthesisSources = {
   /** The Presets as they stand. */
   presets: () => readonly Preset[];
   providers: Providers;
-  /** The `system` Provider's: the OS's voice, while there is no Default Preset. */
-  voices: Voices;
+  voices: ProviderVoices;
 };
 
 /** What synthesizes `phrase`: its Voice and settings, bound to its Provider. */
 export async function synthesisOf(
   phrase: Pick<Phrase, "preset" | "speech">,
-  sources: SynthesisSources,
+  { providers, ...sources }: SynthesisSources,
 ): Promise<Synthesis> {
-  const { voice, settings } = await speechOf(phrase, sources);
-  switch (voice.provider) {
-    case SYSTEM_PROVIDER:
-      return (text, signal) =>
-        sources.providers.system.synthesize(text, voice.id, settings, signal);
+  const speech = await speechOf(phrase, sources);
+  const { id } = speech.voice;
+  if (isSpokenBy(speech, SYSTEM_PROVIDER)) {
+    return (text, signal) =>
+      providers.system.synthesize(text, id, speech.settings, signal);
   }
+  return (text, signal) =>
+    providers.elevenlabs.synthesize(text, id, speech.settings, signal);
 }
 
 /**
@@ -59,9 +73,9 @@ export async function speechOf(
     }
     return found;
   }
-  const id = await voices.osDefault();
-  return {
-    voice: { provider: SYSTEM_PROVIDER, id, name: id },
-    settings: INITIAL_SYSTEM_SETTINGS,
-  };
+  const id = await voices.system.osDefault();
+  return presetSpeech(
+    { provider: SYSTEM_PROVIDER, id, name: id },
+    INITIAL_SETTINGS.system,
+  );
 }

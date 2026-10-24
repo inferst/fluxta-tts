@@ -2,16 +2,18 @@ import { Dialog, SelectField, TextField } from "@fluxta/sdk/ui";
 import { useState } from "react";
 import {
   formatRate,
-  INITIAL_SYSTEM_SETTINGS,
+  INITIAL_SETTINGS,
+  isSpokenBy,
   presetProblem,
+  presetSpeech,
   RATES,
   SYSTEM_PROVIDER,
   type Preset,
   type PresetDraft,
   type PresetVoice,
-  type ProviderOption,
   type ProviderName,
-  type SystemSettings,
+  type ProviderOption,
+  type ProviderSettings,
 } from "tts-protocol";
 
 import { ListenField } from "../shared/ListenField";
@@ -50,9 +52,8 @@ export function PresetDialog({
   const [name, setName] = useState("");
   const [provider, setProvider] = useState<ProviderName>(SYSTEM_PROVIDER);
   const [voice, setVoice] = useState<PresetVoice>();
-  const [settings, setSettings] = useState<SystemSettings>(
-    INITIAL_SYSTEM_SETTINGS,
-  );
+  // Every Provider's, so that switching Provider and back loses nothing.
+  const [settings, setSettings] = useState<ProviderSettings>(INITIAL_SETTINGS);
 
   // A reopened dialog shows the Preset as it stands now, not whatever was
   // last typed into it — reset while rendering the opening, which React
@@ -64,13 +65,20 @@ export function PresetDialog({
       setName(preset?.name ?? "");
       setProvider(preset?.voice.provider ?? SYSTEM_PROVIDER);
       setVoice(preset?.voice);
-      setSettings(preset?.settings ?? INITIAL_SYSTEM_SETTINGS);
+      setSettings(
+        preset
+          ? isSpokenBy(preset, SYSTEM_PROVIDER)
+            ? { ...INITIAL_SETTINGS, system: preset.settings }
+            : { ...INITIAL_SETTINGS, elevenlabs: preset.settings }
+          : INITIAL_SETTINGS,
+      );
     }
   }
 
   const offered = providers.find(({ name }) => name === provider);
   // A Voice of another Provider is not this Provider's to show.
   const chosen = voice?.provider === provider ? voice : undefined;
+  const speech = chosen && presetSpeech(chosen, settings[chosen.provider]);
 
   return (
     <Dialog
@@ -80,10 +88,10 @@ export function PresetDialog({
       onSubmit={() => {
         const draft = { id: preset?.id, name: name.trim(), voice: chosen };
         const problem = presetProblem(draft, others);
-        if (problem !== undefined || !draft.voice) {
+        if (problem !== undefined || !speech) {
           return problem;
         }
-        onSave({ ...draft, voice: draft.voice, settings });
+        onSave({ id: draft.id, name: draft.name, ...speech });
       }}
     >
       <TextField
@@ -117,20 +125,34 @@ export function PresetDialog({
           `${chosen?.id === id ? chosen.name : id} — not available right now`
         }
         placeholder="Choose a voice"
+        loading={offered?.loading}
         error={offered?.problem}
-        hint="Listen waits for the Phrase being spoken, then goes ahead of the rest."
-        listen={chosen && { speech: { voice: chosen, settings } }}
+        hint={VOICE_HINTS[provider]}
+        listen={speech && { speech }}
       />
 
-      <SelectField
-        label="Rate"
-        options={RATE_OPTIONS}
-        value={String(settings.rate)}
-        onChange={(rate) => setSettings({ ...settings, rate: Number(rate) })}
-        searchable={false}
-        missingLabel={(rate) => formatRate(Number(rate))}
-        hint="1.0× is the voice’s normal pace."
-      />
+      {provider === SYSTEM_PROVIDER ? (
+        <SelectField
+          label="Rate"
+          options={RATE_OPTIONS}
+          value={String(settings.system.rate)}
+          onChange={(rate) =>
+            setSettings({ ...settings, system: { rate: Number(rate) } })
+          }
+          searchable={false}
+          missingLabel={(rate) => formatRate(Number(rate))}
+          hint="1.0× is the voice’s normal pace."
+        />
+      ) : null}
     </Dialog>
   );
 }
+
+const LISTEN_HINT =
+  "Listen waits for the Phrase being spoken, then goes ahead of the rest.";
+
+/** What the Voice field says of where each Provider's voices come from. */
+const VOICE_HINTS: Record<ProviderName, string> = {
+  system: LISTEN_HINT,
+  elevenlabs: `The voices in My Voices on the ElevenLabs site — add one there, then open these settings again. ${LISTEN_HINT}`,
+};

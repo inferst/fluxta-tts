@@ -70,6 +70,29 @@ describe("readPresets", () => {
   });
 });
 
+describe("a Preset of ElevenLabs voices", () => {
+  const rachel = {
+    id: "preset-rachel",
+    name: "Rachel",
+    voice: {
+      provider: "elevenlabs",
+      id: "21m00Tcm4TlvDq8ikWAM",
+      name: "Rachel",
+    },
+    settings: {},
+  };
+
+  it("is read with its Voice, and settings of its own", () => {
+    expect(readPresets([rachel])).toEqual([rachel]);
+  });
+
+  it("keeps none of another Provider's settings", () => {
+    expect(
+      readPresets([{ ...rachel, settings: { rate: 1.5 } }])[0].settings,
+    ).toEqual({});
+  });
+});
+
 describe("readPresetDraft", () => {
   it("reads a new Preset without an id, and an edited one with it", () => {
     const fresh = {
