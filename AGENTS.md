@@ -6,7 +6,7 @@ This document provides instructions for agentic coding agents working in this re
 
 Fluxta Text to Speech is a [Fluxta](https://fluxta.app) plugin that reads text aloud with this computer's own voices. Its **Speak** Action puts a **Phrase** into the plugin's single **Speech Queue** — where its **Position** says — and returns at once; the queue speaks Phrases one at a time. **Stop Speech** ends Phrases early: the current one, every one, or those carrying a **Tag**. The motivating use is a stream read aloud: a chat Event of the `platforms` plugin runs Speak with the viewer's message, and the voice plays on a device OBS captures. A deck button uses Speak the same way. See `CONTEXT.md`.
 
-It runs on macOS today; Windows answers every Phrase with `unavailable` until its own Provider and Player arrive. It is a pnpm workspace (turbo) of three TypeScript packages. The Plugin API it builds against — `@fluxta/sdk` and the `fluxta` CLI from `@fluxta/cli` — is owned by Fluxta, not by this repo (see [Working against Fluxta](#working-against-fluxta)).
+It runs on macOS and on Windows 10 and 11; on Windows it plays on the system default output only, until device choice arrives there (inferst/fluxta-tts#9). It is a pnpm workspace (turbo) of three TypeScript packages. The Plugin API it builds against — `@fluxta/sdk` and the `fluxta` CLI from `@fluxta/cli` — is owned by Fluxta, not by this repo (see [Working against Fluxta](#working-against-fluxta)).
 
 ## Commands
 
@@ -22,7 +22,7 @@ pnpm install     # Node ≥ 22.18, the pnpm version pinned in package.json
 pnpm build          # wipe dist/ and build the editors and the sidecar into dist/tts/
 pnpm dev            # build the editors once, then watch both apps
 pnpm typecheck      # tsc --noEmit in every package
-pnpm test           # vitest in apps/plugin — on macOS it also drives the real engines, silently
+pnpm test           # vitest in apps/plugin — on macOS and on Windows it also drives that OS's real engines, silently
 pnpm lint           # eslint over the whole workspace
 pnpm format         # prettier --write; `pnpm format:check` only checks
 ```
@@ -54,7 +54,7 @@ Editor-only rebuilds restart nothing — reopen the editor in Fluxta to see them
 
 ### Packages
 
-- `apps/plugin` (`tts-plugin`) — the Plugin sidecar: the Node.js process Fluxta starts. tsdown bundles it into `dist/tts/index.mjs`, the JXA scripts inside it, and copies `manifest.json` and `icons/` beside it.
+- `apps/plugin` (`tts-plugin`) — the Plugin sidecar: the Node.js process Fluxta starts. tsdown bundles it into `dist/tts/index.mjs`, the engines' scripts inside it, and copies `manifest.json` and `icons/` beside it.
 - `apps/editor` (`tts-editor`) — the Plugin Editor and the Action Editors, React + Vite, built into `dist/tts/editor/`.
 - `packages/protocol` (`tts-protocol`) — what the sidecar and the editors share: every Action's settings type (`actions.ts`), the Defaults and their bounds (`defaults.ts`), and the messages between the editors and the sidecar (`editor.ts`). Consumed as TypeScript source; it has no build.
 
@@ -72,16 +72,27 @@ speech/
   listing.ts          a list looked up once and kept, and afresh when an editor opens
   voices.ts           the Provider's Voices, so kept; the OS's default voice
   truncate.ts         the Length Limit: cut at the last word boundary, counted in graphemes
-  wav.ts              Float32 samples → 16-bit WAV; a WAV's duration
+  wav.ts              Float32 samples or 16-bit PCM → 16-bit WAV; a WAV's duration
 system/
   index.ts            the `system` Provider and Player for the OS the sidecar runs on
   unsupported.ts      an OS they do not cover yet: every Phrase `unavailable`
+  script-process.ts   one long-lived interpreter running a script: JSON lines, restarts, `unavailable` and `transient`
+  script-player.ts    a Player over such a script: a temporary WAV file per play, its start, end, stop and watchdog
+  fake-engine.ts      the Engine tests answer by hand
   macos/
-    jxa-process.ts    one long-lived `osascript -l JavaScript` running a script
+    jxa-process.ts    the script in `osascript -l JavaScript`
     synthesizer.jxa   AVSpeechSynthesizer: voices, synthesis to PCM
     player.jxa        Core Audio's devices; AVAudioEngine, one engine per device: plays a WAV file, reports its end, stops, cuts it off when its device goes
     macos-provider.ts the macOS `system` Provider over synthesizer.jxa
     macos-player.ts   the macOS Player over player.jxa
+  windows/
+    powershell-process.ts  the script in Windows PowerShell 5.1, started by bootstrap.ps1
+    bootstrap.ps1     `-EncodedCommand`: refuses ConstrainedLanguage, then runs the script read from stdin
+    loop.ps1          the request loop every Windows script runs on
+    synthesizer.ps1   SAPI (COM) and OneCore (WinRT): both stores' voices, synthesis to PCM or WAV
+    player.ps1        SAPI `SpeakStream`: plays a WAV file on the default output, reports its start and end, stops
+    windows-provider.ts the Windows `system` Provider: one voice list from both stores, ids `onecore:…` / `sapi:…`, each store's rate
+    windows-player.ts the Windows Player over player.ps1, System default only
 actions/              one StandaloneAction per manifest Action, file named after its `type`
   values.ts           what an interpolated setting holds: text, and Tags as they compare
 sources/              the Query Sources `speaking` and `waiting`, read off the Speech Queue
@@ -119,12 +130,14 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it; when i
 - **A Phrase that cannot be spoken is dropped, and the queue moves on.** Nothing the user chose is substituted to save it — no other Voice, no other device. Every drop is told once (`dropOf`): a `console.warn` line (`describeDrop`) — the kind, the reason, the beginning of the text — and an entry in Recent problems, the Plugin Editor's section with a red dot while it is not empty. A stopped Phrase is not a drop, and a Listen's goes to its editor instead.
 - **A `transient` failure is tried once more, and only before any sound.** The queue tries the whole Phrase again — its Voice, synthesis and play — so a crashed engine starts afresh; a second failure drops it, and Stop Speech reaches it meanwhile. A Phrase whose sound has started is cut off, never repeated. Nothing about a failure is kept: no Unavailable state, no retry button — every Phrase tries afresh, so a fix outside is picked up with no restart.
 - **The Provider seam.** A Provider takes plain text — an engine that reads markup gets the text escaped by its Provider, so chat cannot steer it — and returns a whole Phrase as 16-bit WAV. Rate is the only synthesis parameter, a multiplier each Provider maps and clamps; volume is the Player's. Errors are closed sets: `voice-missing` / `rejected` / `unavailable` / `transient` for a Provider, `device-missing` / `unavailable` / `transient` for a Player, each with a reason a person can read. An abort rejects with the signal's reason and is not an error. A cloud Provider must fit the same seam.
-- **No binary in the package.** The macOS engines are JXA scripts, run by the `osascript` every Mac ships. They are `.jxa` files bundled as strings (`jxa-text.ts`, for tsdown and vitest alike) and passed to `osascript -e` — nothing beside `index.mjs` to find at run time. They are not linted or formatted.
-- **The JXA scripts rest on undocumented behaviour**: a JS function passed where an Objective-C block is expected is called as that block, but only when the script's run loop yields — so the loop yields every 5 ms while something is under way and every second when idle. Messages are JSON lines with an `id`; the sidecar escapes everything above ASCII, because the script decodes stdin in whatever pieces arrive. A script announces `{"ready":true}`: a process that exits before that is `unavailable`, one that exits after it crashed (`transient`). `JxaProcess` starts one on first use and again after it exits; a script exits on end of stdin, so it never outlives the sidecar.
+- **No binary in the package.** The engines are scripts for what each OS ships: JXA for the `osascript` of every Mac, PowerShell for the Windows PowerShell 5.1 of every Windows 10 and 11. They are `.jxa` and `.ps1` files bundled as strings (`script-text.ts`, for tsdown and vitest alike) — nothing beside `index.mjs` to find at run time. They are not linted or formatted.
+- **The JXA scripts rest on undocumented behaviour**: a JS function passed where an Objective-C block is expected is called as that block, but only when the script's run loop yields — so the loop yields every 5 ms while something is under way and every second when idle. Messages are JSON lines with an `id`; the sidecar escapes everything above ASCII, because the script decodes stdin in whatever pieces arrive. A script announces `{"ready":true}`: a process that exits before that is `unavailable`, one that exits after it crashed (`transient`). `ScriptProcess` starts one on first use and again after it exits; a script exits on end of stdin, so it never outlives the sidecar.
+- **The PowerShell scripts are Windows PowerShell 5.1, and cannot be run on macOS.** PowerShell 7 cannot reach WinRT, and is not on every Windows. `powershell.exe` gets only the bootstrap, as `-EncodedCommand` — a command line holds 32K characters, and it is not a script file, so the execution policy does not apply. The bootstrap first refuses ConstrainedLanguage (AppLocker, WDAC) with `{"unavailable":…}`, in ASCII, then runs the loop and the engine's script, read from the first line of stdin. Replies go out through a UTF-8 writer of the script's own, audio as hand-written base64 lines. Nothing from PowerShell 7 — `??`, `&&`, `-AsHashtable`… (a test guards against those) — and every unwanted result goes to `$null`, or it becomes a function's return value. Their behaviour is checked only by `windows.integration.test.ts`, on Windows.
+- **Windows' two voice stores are one list.** OneCore (WinRT) has the full Microsoft set; SAPI (COM) also has third-party voices such as RHVoice. A Voice's id carries its store (`onecore:…`, `sapi:…`); a voice in both — `Microsoft Irina` and `Microsoft Irina Desktop` — is listed once, as OneCore's; OneCore's default, chosen in Settings, is the OS's voice. Text goes to both as text: SAPI with `SVSFIsNotXML`, OneCore through `SynthesizeTextToStreamAsync`, which reads no SSML.
 - **The Player never trusts AVAudioEngine to report an end, nor to keep its device.** An engine whose device goes away moves to the default output by itself — the speakers, possibly the stream — and then stops, without completing what was playing, or completing it at once as if it had ended; the configuration-change notification comes ~100 ms later. So the script watches every engine on each pass of its loop while something plays, and cuts a play off the moment its engine leaves its device or stops; a play on System default is cut off too once the OS's default output is another device. A node of such an engine is never stopped — its `stop` does not return — the engine is. The sidecar stops any play that runs 5 s past its length.
 - **A Phrase never moves to another device.** The Output Device decides who hears it, so a device that is not here drops the Phrase (`device-missing`) and one that goes away mid-phrase cuts it off — never System default instead. A device is saved by its Core Audio UID, which persists across boots and re-plugging, with its name for the editors and the reasons; an `AudioDeviceID` is a runtime id, resolved afresh for every play.
 - **Core Audio from JXA goes through `ObjC.bindFunction` with plain pointers.** Its device API is C only, and BridgeSupport's struct-pointer signatures crash `osascript`. A property's address is UInt32s in an `NSMutableData`; numbers come back through base64, strings through a `Ref`.
-- **Nothing is ever played aloud in tests or experiments.** Plays run at volume 0. The macOS integration test (`*.integration.test.ts`) drives the real engines this way and runs only on macOS; everything else runs against fakes (`FakeEngine`, fake Providers and Players) and needs no OS.
+- **Nothing is ever played aloud in tests or experiments.** Plays run at volume 0. The integration tests (`*.integration.test.ts`) drive the real engines this way, each only on its own OS; everything else runs against fakes (`FakeEngine`, fake Providers and Players) and needs no OS.
 - **The sidecar bundle is self-contained.** Fluxta runs it with a bundled Node and no `node_modules`, so tsdown inlines every non-builtin dependency (`noExternal`). Do not externalize one.
 - **File naming**: the sidecar and `tts-protocol` use kebab-case (`speech-queue.ts`, `macos-provider.ts`). In the editors, React components are PascalCase (`SpeakEditor.tsx`), hooks are `useThing.ts`.
 - **Tests**: vitest, colocated `*.test.ts`.
