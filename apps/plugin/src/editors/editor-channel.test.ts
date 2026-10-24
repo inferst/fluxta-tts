@@ -7,6 +7,9 @@ import {
 } from "tts-protocol";
 import { describe, expect, it, vi } from "vitest";
 
+import { ElevenLabsAccount } from "../elevenlabs/account";
+import { ElevenLabsClient } from "../elevenlabs/client";
+import { ElevenLabsProvider } from "../elevenlabs/elevenlabs-provider";
 import { SettingsStore } from "../settings/settings-store";
 import { Listing } from "../speech/listing";
 import { PlayerError, type Device, type Player } from "../speech/player";
@@ -36,6 +39,24 @@ const chat: Preset = {
   settings: { rate: 1.5 },
 };
 
+/** The key ElevenLabs takes in these tests; any other is invalid. */
+const GOOD_KEY = "sk_good_secret";
+
+/** ElevenLabs as these tests see it: Rachel for the good key, 401 else. */
+const elevenLabsFetch = async (
+  _input: string | URL | Request,
+  init?: RequestInit,
+) =>
+  new Headers(init?.headers).get("xi-api-key") === GOOD_KEY
+    ? Response.json({
+        voices: [{ voice_id: "rachel-id", name: "Rachel" }],
+        has_more: false,
+      })
+    : Response.json(
+        { detail: { code: "invalid_api_key", message: "Invalid API key" } },
+        { status: 401 },
+      );
+
 const blackHole: Device = { id: "BlackHole2ch_UID", name: "BlackHole 2ch" };
 const speakers: Device = {
   id: "BuiltInSpeakerDevice",
@@ -46,9 +67,11 @@ const speakers: Device = {
 function setup({
   lookUpVoices = async () => [milena, ava],
   lookUpDevices = async () => [blackHole, speakers],
+  fetchElevenLabs = elevenLabsFetch,
 }: {
   lookUpVoices?: Provider["voices"];
   lookUpDevices?: Player["devices"];
+  fetchElevenLabs?: typeof elevenLabsFetch;
 } = {}) {
   const sent: PluginMessage[] = [];
   const voicesLookUp = vi.fn(lookUpVoices);
@@ -64,6 +87,19 @@ function setup({
     () => void channel.publish(),
     () => "new-preset",
   );
+  const connections = vi.fn();
+  const account = new ElevenLabsAccount({
+    key: () => settings.elevenLabsKey,
+    onChange: () => void channel.publish(),
+    report: connections,
+  });
+  const elevenLabs = new ElevenLabsProvider(
+    new ElevenLabsClient({
+      key: () => settings.elevenLabsKey,
+      onOutcome: (outcome, key) => account.outcome(outcome, key),
+      fetch: vi.fn(fetchElevenLabs),
+    }),
+  );
   const enqueue = vi.fn<SpeechQueue["enqueue"]>();
   const problems = new RecentProblems(
     () => void channel.publish(),
@@ -72,10 +108,14 @@ function setup({
   const channel = new EditorChannel({
     sender: { sendToEditor: (message) => sent.push(message) },
     settings,
-    voices,
+    voices: {
+      system: voices,
+      elevenlabs: new Listing(() => elevenLabs.voices()),
+    },
     devices,
     queue: { enqueue },
     problems,
+    elevenLabs: account,
   });
   const statuses = () =>
     sent.flatMap((message) =>
@@ -93,8 +133,17 @@ function setup({
     voicesLookUp,
     devicesLookUp,
     enqueue,
+    account,
+    connections,
   };
 }
+
+const noKey = {
+  name: "elevenlabs",
+  label: "ElevenLabs",
+  voices: [],
+  problem: "There is no ElevenLabs API key — add one under ElevenLabs",
+};
 
 const settle = () => new Promise((resolve) => setTimeout(resolve, 0));
 
@@ -125,7 +174,11 @@ describe("EditorChannel", () => {
             },
           ],
         },
+        // Offered always, so that it can be found: the reason says where to
+        // add a key.
+        noKey,
       ],
+      elevenLabs: { state: "no-key" },
       // In the OS's order, as the host's Play Sound lists them.
       devices: [blackHole, speakers],
       problems: [],
@@ -219,11 +272,135 @@ describe("EditorChannel", () => {
           voices: [],
           problem: reason,
         },
+        noKey,
       ],
+      elevenLabs: { state: "no-key" },
       devices: [],
       devicesProblem: reason,
       problems: [],
     });
+  });
+
+  it("stores an ElevenLabs key, checks the account with it and lists its voices — never telling the key", async () => {
+    const { channel, settings, last, sent, connections, setPluginSettings } =
+      setup();
+    settings.load({});
+
+    await channel.handle({ event: "set-elevenlabs-key", key: ` ${GOOD_KEY} ` });
+    await settle();
+
+    expect(settings.elevenLabsKey).toBe(GOOD_KEY);
+    expect(setPluginSettings).toHaveBeenLastCalledWith(
+      expect.objectContaining({ elevenLabs: { key: GOOD_KEY } }),
+    );
+    expect(last()?.elevenLabs).toEqual({ state: "connected" });
+    expect(last()?.providers[1]).toEqual({
+      name: "elevenlabs",
+      label: "ElevenLabs",
+      voices: [{ id: "rachel-id", name: "Rachel", label: "Rachel" }],
+    });
+    expect(connections).toHaveBeenLastCalledWith([
+      { id: "elevenlabs", title: "ElevenLabs", connected: true },
+    ]);
+    expect(JSON.stringify(sent)).not.toContain(GOOD_KEY);
+  });
+
+  it("keeps the stored key when the field is left blank", async () => {
+    const { channel, settings, setPluginSettings } = setup();
+    settings.load({ elevenLabs: { key: GOOD_KEY } });
+
+    await channel.handle({ event: "set-elevenlabs-key", key: "  " });
+
+    expect(settings.elevenLabsKey).toBe(GOOD_KEY);
+    expect(setPluginSettings).not.toHaveBeenCalled();
+  });
+
+  it("says why the account is not connected with an invalid key", async () => {
+    const { channel, settings, last, connections } = setup();
+    settings.load({});
+
+    await channel.handle({ event: "set-elevenlabs-key", key: "sk_wrong" });
+    await settle();
+
+    expect(last()?.elevenLabs).toEqual({
+      state: "not-connected",
+      reason: "ElevenLabs: Invalid API key",
+    });
+    expect(last()?.providers[1]).toMatchObject({
+      voices: [],
+      problem: "ElevenLabs: Invalid API key",
+    });
+    expect(connections).toHaveBeenLastCalledWith([
+      { id: "elevenlabs", title: "ElevenLabs", connected: false },
+    ]);
+    expect(JSON.stringify(last())).not.toContain("sk_wrong");
+  });
+
+  it("removes the key, and the External Connection with it", async () => {
+    const { channel, settings, account, last, connections } = setup();
+    settings.load({ elevenLabs: { key: GOOD_KEY } });
+    account.keyChanged();
+    await channel.handle({ event: "get-status" });
+    await settle();
+    expect(last()?.elevenLabs).toEqual({ state: "connected" });
+
+    await channel.handle({ event: "remove-elevenlabs-key" });
+    await settle();
+
+    expect(settings.elevenLabsKey).toBeUndefined();
+    expect(last()?.elevenLabs).toEqual({ state: "no-key" });
+    expect(last()?.providers[1]).toEqual(noKey);
+    expect(connections).toHaveBeenLastCalledWith([]);
+  });
+
+  it("does not wait for ElevenLabs: this computer's voices go out at once, ElevenLabs' once it answers", async () => {
+    let answer = () => {};
+    const { channel, settings, last } = setup({
+      fetchElevenLabs: (input, init) =>
+        new Promise((resolve) => {
+          answer = () => resolve(elevenLabsFetch(input, init));
+        }),
+    });
+    settings.load({ elevenLabs: { key: GOOD_KEY } });
+
+    const opened = channel.handle({ event: "get-status" });
+    await settle();
+
+    expect(last()?.providers[0].voices).toHaveLength(2);
+    expect(last()?.providers[1]).toEqual({
+      name: "elevenlabs",
+      label: "ElevenLabs",
+      voices: [],
+      loading: true,
+    });
+
+    answer();
+    await opened;
+    expect(last()?.providers[1].voices).toEqual([
+      { id: "rachel-id", name: "Rachel", label: "Rachel" },
+    ]);
+  });
+
+  it("asks for a failed ElevenLabs list again only when an editor opens", async () => {
+    const fetchElevenLabs = vi.fn(async () => {
+      throw new TypeError("fetch failed");
+    });
+    const { channel, settings, last } = setup({ fetchElevenLabs });
+    settings.load({ elevenLabs: { key: GOOD_KEY } });
+
+    await channel.handle({ event: "get-status" });
+    expect(last()?.providers[1].problem).toBe(
+      "Cannot reach ElevenLabs: fetch failed",
+    );
+    await channel.handle({
+      event: "set-defaults",
+      defaults: { ...INITIAL_DEFAULTS, volume: 50 },
+    });
+    await settle();
+    expect(fetchElevenLabs).toHaveBeenCalledOnce();
+
+    await channel.handle({ event: "get-status" });
+    expect(fetchElevenLabs).toHaveBeenCalledTimes(2);
   });
 
   it("tells every editor of a Phrase dropped, at once", async () => {

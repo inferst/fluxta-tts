@@ -1,6 +1,8 @@
 import {
-  INITIAL_SYSTEM_SETTINGS,
+  ELEVENLABS_PROVIDER,
+  INITIAL_SETTINGS,
   PRESET_NAME_MAX,
+  presetSpeech,
   RATE_MAX,
   RATE_MIN,
   SYSTEM_PROVIDER,
@@ -69,23 +71,25 @@ export function readPresetSpeech(raw: unknown): PresetSpeech | undefined {
   if (voice === undefined) {
     return undefined;
   }
-  return { voice, settings: systemSettingsOf(raw.settings) };
+  return voice.provider === SYSTEM_PROVIDER
+    ? presetSpeech(voice, systemSettingsOf(raw.settings))
+    : presetSpeech(voice, INITIAL_SETTINGS.elevenlabs);
 }
 
 function voiceOf(value: unknown): PresetVoice | undefined {
-  if (
-    !isRecord(value) ||
-    value.provider !== SYSTEM_PROVIDER ||
-    typeof value.id !== "string" ||
-    value.id === ""
-  ) {
+  if (!isRecord(value) || typeof value.id !== "string" || value.id === "") {
     return undefined;
   }
-  return {
-    provider: value.provider,
-    id: value.id,
-    name: nameOf(value.name) ?? value.id,
-  };
+  const { id } = value;
+  const name = nameOf(value.name) ?? id;
+  switch (value.provider) {
+    case SYSTEM_PROVIDER:
+      return { provider: SYSTEM_PROVIDER, id, name };
+    case ELEVENLABS_PROVIDER:
+      return { provider: ELEVENLABS_PROVIDER, id, name };
+    default:
+      return undefined;
+  }
 }
 
 /** Each setting it cannot read starts as a new Preset's would. */
@@ -95,6 +99,6 @@ function systemSettingsOf(value: unknown): SystemSettings {
     rate:
       typeof rate === "number" && Number.isFinite(rate)
         ? Math.min(RATE_MAX, Math.max(RATE_MIN, rate))
-        : INITIAL_SYSTEM_SETTINGS.rate,
+        : INITIAL_SETTINGS.system.rate,
   };
 }

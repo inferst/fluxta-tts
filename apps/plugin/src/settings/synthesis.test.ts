@@ -1,6 +1,7 @@
-import type { Preset, SystemSettings } from "tts-protocol";
+import type { ElevenLabsSettings, Preset, SystemSettings } from "tts-protocol";
 import { describe, expect, it, vi } from "vitest";
 
+import { Listing } from "../speech/listing";
 import type { Provider, Voice } from "../speech/provider";
 import { Voices } from "../speech/voices";
 import { synthesisOf } from "./synthesis";
@@ -27,15 +28,25 @@ function setup(presets: Preset[] = [announcer]) {
     voices: async () => [milena],
     synthesize,
   };
+  const elevenlabsSynthesize = vi.fn<
+    Provider<ElevenLabsSettings>["synthesize"]
+  >(async () => new Uint8Array([2]));
+  const elevenlabs: Provider<ElevenLabsSettings> = {
+    voices: async () => [],
+    synthesize: elevenlabsSynthesize,
+  };
   const sources = {
     presets: () => presets,
-    providers: { system },
-    voices: new Voices(system),
+    providers: { system, elevenlabs },
+    voices: {
+      system: new Voices(system),
+      elevenlabs: new Listing(() => elevenlabs.voices()),
+    },
   };
   const signal = new AbortController().signal;
   const speak = async (phrase: Parameters<typeof synthesisOf>[0]) =>
     (await synthesisOf(phrase, sources))("Привет", signal);
-  return { speak, synthesize, signal };
+  return { speak, synthesize, elevenlabsSynthesize, signal };
 }
 
 describe("synthesisOf", () => {
@@ -52,6 +63,32 @@ describe("synthesisOf", () => {
       { rate: 1.4 },
       signal,
     );
+  });
+
+  it("speaks a Preset of ElevenLabs voices through ElevenLabs", async () => {
+    const rachel: Preset = {
+      id: "preset-rachel",
+      name: "Rachel",
+      voice: {
+        provider: "elevenlabs",
+        id: "21m00Tcm4TlvDq8ikWAM",
+        name: "Rachel",
+      },
+      settings: {},
+    };
+    const { speak, synthesize, elevenlabsSynthesize, signal } = setup([rachel]);
+
+    expect(await speak({ preset: { id: rachel.id, name: "Rachel" } })).toEqual(
+      new Uint8Array([2]),
+    );
+
+    expect(elevenlabsSynthesize).toHaveBeenCalledWith(
+      "Привет",
+      "21m00Tcm4TlvDq8ikWAM",
+      {},
+      signal,
+    );
+    expect(synthesize).not.toHaveBeenCalled();
   });
 
   it("reads the Preset as it stands when the Phrase's turn comes", async () => {

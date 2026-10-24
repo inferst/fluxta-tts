@@ -4,6 +4,7 @@ import {
   Section,
   SelectField,
   usePluginEditor,
+  type StatusTone,
 } from "@fluxta/sdk/ui";
 import { useEffect, useState } from "react";
 import { VOLUME_MAX, type Defaults, type PluginStatus } from "tts-protocol";
@@ -19,6 +20,7 @@ import { missingPreset, presetOptions, presetRef } from "../shared/presets";
 import { SavedNumberField } from "../shared/SavedNumberField";
 import { sendToPlugin } from "../shared/sendToPlugin";
 import { useStatus } from "../shared/useStatus";
+import { ElevenLabs, elevenLabsTone } from "./ElevenLabs";
 import { Presets } from "./Presets";
 import { RecentProblems } from "./RecentProblems";
 
@@ -65,6 +67,12 @@ export function PluginEditorApp() {
           id: "defaults",
           label: "Defaults",
           content: <DefaultsForm status={status} />,
+        },
+        {
+          id: "elevenlabs",
+          label: "ElevenLabs",
+          ...withTone(elevenLabsTone(status.elevenLabs)),
+          content: <ElevenLabs status={status.elevenLabs} />,
         },
         {
           id: "problems",
@@ -144,4 +152,9 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
       />
     </Section>
   );
+}
+
+/** A section's dot, when it has one. */
+function withTone(tone: StatusTone | undefined): { tone?: StatusTone } {
+  return tone ? { tone } : {};
 }

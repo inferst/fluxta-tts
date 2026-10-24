@@ -185,6 +185,57 @@ describe("SettingsStore", () => {
     expect(setPluginSettings).toHaveBeenCalledOnce();
   });
 
+  it("stores the ElevenLabs API key in Plugin Settings, trimmed, and nowhere else", async () => {
+    const { store, setPluginSettings } = setup();
+    store.load({ presets: [chat] });
+
+    await store.setElevenLabsKey("  sk_secret  ");
+
+    expect(store.elevenLabsKey).toBe("sk_secret");
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      defaults: INITIAL_DEFAULTS,
+      presets: [chat],
+      elevenLabs: { key: "sk_secret" },
+    });
+  });
+
+  it("reads the stored key back, and keeps it through other changes", async () => {
+    const { store, setPluginSettings } = setup();
+    store.load({ elevenLabs: { key: "sk_secret" } });
+
+    await store.setDefaults({ volume: 40 });
+
+    expect(store.elevenLabsKey).toBe("sk_secret");
+    expect(setPluginSettings).toHaveBeenCalledWith(
+      expect.objectContaining({ elevenLabs: { key: "sk_secret" } }),
+    );
+  });
+
+  it("keeps the stored key for a blank one, and saves nothing for the same one", async () => {
+    const { store, setPluginSettings } = setup();
+    store.load({ elevenLabs: { key: "sk_secret" } });
+
+    await store.setElevenLabsKey(" ");
+    await store.setElevenLabsKey(undefined);
+    await store.setElevenLabsKey("sk_secret");
+
+    expect(store.elevenLabsKey).toBe("sk_secret");
+    expect(setPluginSettings).not.toHaveBeenCalled();
+  });
+
+  it("removes the key", async () => {
+    const { store, setPluginSettings } = setup();
+    store.load({ elevenLabs: { key: "sk_secret" } });
+
+    await store.removeElevenLabsKey();
+
+    expect(store.elevenLabsKey).toBeUndefined();
+    expect(setPluginSettings).toHaveBeenCalledWith({
+      defaults: INITIAL_DEFAULTS,
+      presets: [],
+    });
+  });
+
   it("keeps a change it could not save, and logs it", async () => {
     const warn = vi.spyOn(console, "warn").mockImplementation(() => {});
     const store = new SettingsStore({

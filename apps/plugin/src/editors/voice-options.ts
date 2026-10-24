@@ -36,8 +36,9 @@ export function languageName(tag: string): string {
 }
 
 /**
- * Every Voice as the editors list it — `Milena — Russian (Russia)` — sorted
- * by language, then name. Its name alone is what a Preset keeps.
+ * Every Voice as the editors list it — `Milena — Russian (Russia)`, or its
+ * name alone when it has no language of its own — sorted by language, then
+ * name. Its name alone is what a Preset keeps.
  */
 export function voiceOptions(voices: readonly Voice[]): VoiceOption[] {
   const collator = new Intl.Collator("en");
@@ -45,7 +46,8 @@ export function voiceOptions(voices: readonly Voice[]): VoiceOption[] {
     .map((voice) => ({
       id: voice.id,
       name: voiceName(voice),
-      language: languageName(voice.language),
+      language:
+        voice.language === undefined ? "" : languageName(voice.language),
     }))
     .sort(
       (a, b) =>
@@ -55,6 +57,6 @@ export function voiceOptions(voices: readonly Voice[]): VoiceOption[] {
     .map(({ id, name, language }) => ({
       id,
       name,
-      label: `${name} — ${language}`,
+      label: language === "" ? name : `${name} — ${language}`,
     }));
 }

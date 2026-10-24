@@ -33,6 +33,18 @@ describe("voiceOptions", () => {
       },
     ]);
   });
+
+  it("names a voice without a language of its own by its name alone, sorted by name", () => {
+    expect(
+      voiceOptions([
+        { id: "r", name: "Rachel" },
+        { id: "a", name: "Adam" },
+      ]),
+    ).toEqual([
+      { id: "a", name: "Adam", label: "Adam" },
+      { id: "r", name: "Rachel", label: "Rachel" },
+    ]);
+  });
 });
 
 describe("voiceName", () => {

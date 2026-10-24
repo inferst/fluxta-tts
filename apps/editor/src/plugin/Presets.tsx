@@ -8,9 +8,9 @@ import {
   usePluginEditor,
 } from "@fluxta/sdk/ui";
 import { useState } from "react";
-import { formatRate, type Preset, type PluginStatus } from "tts-protocol";
+import type { PluginStatus, Preset } from "tts-protocol";
 
-import { voiceLabel } from "../shared/presets";
+import { presetSummary } from "../shared/presets";
 import { sendToPlugin } from "../shared/sendToPlugin";
 import { PresetDialog } from "./PresetDialog";
 
@@ -76,7 +76,7 @@ function PresetRow({
       <ListRow
         title={preset.name}
         badges={isDefault ? <Badge variant="outline">Default</Badge> : null}
-        description={`${voiceLabel(preset.voice, providers)} · ${formatRate(preset.settings.rate)}`}
+        description={presetSummary(preset, providers)}
         actions={
           <>
             <Button variant="outline" onClick={() => setEditing(true)}>
