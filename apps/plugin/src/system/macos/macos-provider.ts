@@ -7,7 +7,8 @@ import {
   type Voice,
 } from "../../speech/provider";
 import { encodeWav } from "../../speech/wav";
-import { JxaProcess, type Engine, type EngineFailure } from "./jxa-process";
+import type { Engine, EngineFailure } from "../script-process";
+import { JxaProcess } from "./jxa-process";
 import synthesizer from "./synthesizer.jxa";
 
 /**

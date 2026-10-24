@@ -7,7 +7,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { PlayerError } from "../../speech/player";
 import { encodeWav } from "../../speech/wav";
-import { FakeEngine } from "./fake-engine";
+import { FakeEngine } from "../fake-engine";
 import { MacosPlayer } from "./macos-player";
 
 let folder: string;

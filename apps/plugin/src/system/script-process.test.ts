@@ -3,13 +3,22 @@ import { PassThrough } from "node:stream";
 
 import { afterEach, describe, expect, it, vi } from "vitest";
 
-import { asciiJson, JxaProcess, type Reply } from "./jxa-process";
+import { JxaProcess } from "./macos/jxa-process";
+import {
+  asciiJson,
+  ScriptProcess,
+  type Launch,
+  type Reply,
+} from "./script-process";
 
-/** A stand-in for `osascript`: the test writes its stdout and ends it. */
+/** A stand-in for the interpreter: the test writes its stdout and ends it. */
 class FakeChild extends EventEmitter {
   readonly stdin = new PassThrough();
   readonly stdout = new PassThrough();
   readonly stderr = new PassThrough();
+  /** Every line written to stdin, as written. */
+  readonly lines: string[] = [];
+  /** The requests and notifications among them. */
   readonly received: Record<string, unknown>[] = [];
 
   constructor() {
@@ -17,7 +26,10 @@ class FakeChild extends EventEmitter {
     this.stdin.setEncoding("utf8");
     this.stdin.on("data", (chunk: string) => {
       for (const line of chunk.split("\n").filter(Boolean)) {
-        this.received.push(JSON.parse(line));
+        this.lines.push(line);
+        if (line.startsWith("{")) {
+          this.received.push(JSON.parse(line));
+        }
       }
     });
   }
@@ -31,7 +43,7 @@ class FakeChild extends EventEmitter {
   }
 }
 
-function setup() {
+function setup(launch?: Launch) {
   const children: FakeChild[] = [];
   const spawn = vi.fn((command: string, args: string[]) => {
     void command;
@@ -40,7 +52,9 @@ function setup() {
     children.push(child);
     return child;
   });
-  const engine = new JxaProcess("synthesizer", "/* the script */", spawn);
+  const engine = launch
+    ? new ScriptProcess("synthesizer", launch, spawn)
+    : new JxaProcess("synthesizer", "/* the script */", spawn);
   return { engine, spawn, children };
 }
 
@@ -50,7 +64,7 @@ afterEach(() => {
   vi.restoreAllMocks();
 });
 
-describe("JxaProcess", () => {
+describe("ScriptProcess", () => {
   it("starts osascript with the script on the first request only", async () => {
     const { engine, spawn, children } = setup();
     expect(spawn).not.toHaveBeenCalled();
@@ -174,6 +188,68 @@ describe("JxaProcess", () => {
           reason: "Cannot start osascript: spawn osascript ENOENT",
         },
       },
+    ]);
+  });
+});
+
+describe("A script that needs telling what to run", () => {
+  const launch: Launch = {
+    command: "powershell.exe",
+    args: ["-EncodedCommand", "…"],
+    program: "PowerShell",
+    computer: "this computer",
+    preamble: "U2NyaXB0",
+  };
+
+  it("hears its preamble first, every time it starts", async () => {
+    const { engine, children } = setup(launch);
+    engine.request({ op: "voices" }, () => {});
+    await tick();
+    children[0].reply({ ready: true });
+    await tick();
+    children[0].exit(1);
+
+    engine.request({ op: "voices" }, () => {});
+    await tick();
+
+    expect(children.map(({ lines }) => lines)).toEqual([
+      ["U2NyaXB0", '{"op":"voices","id":1}'],
+      ["U2NyaXB0", '{"op":"voices","id":2}'],
+    ]);
+  });
+
+  it("says why it cannot run when the script told it, in its own words", async () => {
+    const { engine, children } = setup(launch);
+    const replies: Reply[] = [];
+    engine.request({ op: "voices" }, (reply) => replies.push(reply));
+
+    children[0].reply({
+      unavailable:
+        "PowerShell runs in ConstrainedLanguage mode — Text to Speech cannot run on this machine",
+    });
+    await tick();
+    children[0].exit(3);
+
+    expect(replies[0].error).toEqual({
+      kind: "unavailable",
+      reason:
+        "PowerShell runs in ConstrainedLanguage mode — Text to Speech cannot run on this machine",
+    });
+  });
+
+  it("names the program and the computer in its own reasons", async () => {
+    const { engine, children } = setup(launch);
+    const replies: Reply[] = [];
+    engine.request({ op: "voices" }, (reply) => replies.push(reply));
+    engine.request({ op: "voices" }, () => {});
+
+    children[0].exit(1);
+    engine.request({ op: "voices" }, (reply) => replies.push(reply));
+    children[1].emit("error", new Error("spawn powershell.exe ENOENT"));
+
+    expect(replies.map(({ error }) => error?.reason)).toEqual([
+      "The synthesizer cannot run on this computer: PowerShell exited with code 1",
+      "Cannot start PowerShell: spawn powershell.exe ENOENT",
     ]);
   });
 });

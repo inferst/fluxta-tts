@@ -9,5 +9,5 @@
     "strict": true,
     "target": "ES2022"
   },
-  "include": ["src", "jxa-text.ts", "tsdown.config.ts", "vitest.config.ts"]
+  "include": ["src", "script-text.ts", "tsdown.config.ts", "vitest.config.ts"]
 }

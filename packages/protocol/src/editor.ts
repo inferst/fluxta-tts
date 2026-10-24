@@ -27,7 +27,7 @@ export type RecentProblem = {
   at: number;
   /** The Provider's or the Player's error kind: `voice-missing`, `rejected`… */
   kind: string;
-  /** What a person reads: `No voice … on this Mac`. */
+  /** What a person reads: `No voice … on this computer`. */
   reason: string;
   /** The beginning of its text, so the viewer's lost message can be found. */
   text: string;

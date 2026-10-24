@@ -141,7 +141,7 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
         }
         missingLabel={missingDevice(defaults.device)}
         error={status.devicesProblem}
-        hint={`Who hears the speech. System default is whatever this Mac plays on${now ? ` — now ${now}` : ""}. A Phrase whose device goes away is cut off, never moved to another one.`}
+        hint={`Who hears the speech. System default is whatever this computer plays on${now ? ` — now ${now}` : ""}. A Phrase whose device goes away is cut off, never moved to another one.`}
       />
 
       <SavedNumberField
