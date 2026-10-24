@@ -61,7 +61,7 @@ Editor-only rebuilds restart nothing — reopen the editor in Fluxta to see them
 ### Plugin sidecar (`apps/plugin/src`)
 
 ```
-index.ts              composition root: the system Provider and Player, the Voices, the settings, the Speech Queue, the Actions, Sources, Events and the editors' channel
+index.ts              composition root: the system and ElevenLabs Providers, the Player, each Provider's Voices, the settings, the ElevenLabs account, the Speech Queue, the Actions, Sources, Events and the editors' channel
 plugin.ts             the single `Plugin` instance from @fluxta/sdk/api
 events.ts             the Event Sources' kinds: `phrase-started`, `phrase-finished`
 manifest.test.ts      the manifest declares exactly what the sidecar registers and emits
@@ -69,7 +69,7 @@ speech/
   provider.ts         the Provider seam: Voice, Audio (WAV), the Provider's own settings, ProviderError and its kinds
   player.ts           the Player seam: Device, Output Device, PlayerError and its kinds
   speech-queue.ts     the Speech Queue, its Synthesis seam, and a dropped Phrase as it is told: its Drop and its log line
-  listing.ts          a list looked up once and kept, and afresh when an editor opens
+  listing.ts          a list looked up once and kept, and afresh when an editor opens; how the latest look-up settled
   voices.ts           the Provider's Voices, so kept; the OS's default voice
   truncate.ts         the Length Limit: cut at the last word boundary, counted in graphemes
   wav.ts              Float32 samples or 16-bit PCM → 16-bit WAV; a WAV's duration
@@ -93,6 +93,10 @@ system/
     player.ps1        Windows' audio endpoints; WinRT's MediaPlayer, one per play: plays a WAV file, reports its start and end, stops, cuts it off when its device goes
     windows-provider.ts the Windows `system` Provider: one voice list from both stores, ids `onecore:…` / `sapi:…`, each store's rate
     windows-player.ts the Windows Player over player.ps1
+elevenlabs/
+  client.ts           the ElevenLabs API: the key in `xi-api-key`, a 10 s timeout, its answers as ProviderErrors, and what each call says of the account
+  account.ts          the account as last found: the editors' status and the External Connection, told only of a change
+  elevenlabs-provider.ts the `elevenlabs` Provider: the account's My Voices
 actions/              one StandaloneAction per manifest Action, file named after its `type`
   values.ts           what an interpolated setting holds: text, and Tags as they compare
 sources/              the Query Sources `speaking` and `waiting`, read off the Speech Queue
@@ -115,6 +119,7 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it, carryi
 
 - One HTML entry per editor at the package root, each mounting `src/<editor>/main.tsx`; `plugin.html` is the Plugin Editor. Fluxta never tells an editor which Action it edits — it only serves the path the manifest names. `vite.config.ts` picks up every `*.html` on its own.
 - Every editor asks the sidecar for its status (`useStatus`) and hears it again whenever the Defaults or the Presets change. The Plugin Editor changes them by message, never with `setPluginSettings` of its own; a number field saves when it is left, not on every keystroke.
+- The Plugin Editor's ElevenLabs section (`plugin/ElevenLabs.tsx`) holds the API key field and the account's status; its dot in the navigation is the status's tone. A Preset dialog offers ElevenLabs always: without a key its Voice field is empty, with the reason saying where to add one.
 - The Plugin Editor's Presets are a list with a dialog (`plugin/Presets.tsx`, `PresetDialog.tsx`), as `fluxta-telegram`'s Chats: the dialog picks a Provider, then a Voice of it, then that Provider's settings, and checks the name with `presetProblem` before it sends `save-preset`; the sidecar gives a new Preset its id. The Default Preset's row has no Delete.
 - What speaks — a Preset's Voice, Speak's Preset — is a `ListenField` (`shared/`), with **Listen** under it (`useListen`): a text input that starts as `LISTEN_TEXT` and is never saved, and the button, `type="button"` so it never submits a dialog. The sidecar tells every open editor, so a Listen carries the editor's own id and only its answer is taken. A Preset's dialog sends its unsaved Voice and settings as `speech`; Speak's editor sends its Preset and Overrides as they stand, unsaved.
 - Speak's Preset field sits above its Override defaults, which hold only Volume, Output device and Length limit. A Preset field saves a Preset by id with its name (`shared/presets.ts`), so one that is not here is still shown by name.
@@ -129,7 +134,10 @@ A Speak becomes a Phrase in the Speech Queue, where its Position puts it, carryi
 - **Urgency is atomic inside Speak.** A Now becomes the current Phrase within its own Speak and cuts the old one off — "Stop Speech, then Speak" would let the queue start its next Phrase in between. It is spoken only once the Phrase it cut off has ended, so that one's Phrase Finished goes out before its own Phrase Started.
 - **An empty Tag stops nothing.** Fluxta resolves an absent reference to `""`, so Stop Speech by Tag with nothing left after trimming does nothing at all — never Everything, which happens only when the user picks it. Speak discards an empty Tag. Tags compare exactly (`values.ts`); both Actions normalise them the same way.
 - **Every Phrase Started is followed by exactly one Phrase Finished**, however the Phrase ended — cut off by Stop Speech or a Now, or the Player failing mid-phrase. A Phrase that never started (stopped while it waited, its synthesis failed, the Player failed before any sound) fires neither. The queue enforces it: it starts a Phrase at most once, whatever the Player reports, and runs every listener so that one that throws cannot stop the queue.
-- **The sidecar is the only writer of Plugin Settings** — the Defaults and the Presets. It reads them once, at startup — Fluxta echoes every write back, and an echo can arrive after a newer change — and the Plugin Editor asks it for a change by message. A Speak waits for that first read, then reads the Defaults as they stand when it runs: an absent Override follows its Default, and one it cannot read follows it too rather than dropping the Phrase. Its Preset is read when its turn comes, so an edit reaches the Phrases already waiting.
+- **The sidecar is the only writer of Plugin Settings** — the Defaults, the Presets and the ElevenLabs API key. It reads them once, at startup — Fluxta echoes every write back, and an echo can arrive after a newer change — and the Plugin Editor asks it for a change by message. A Speak waits for that first read, then reads the Defaults as they stand when it runs: an absent Override follows its Default, and one it cannot read follows it too rather than dropping the Phrase. Its Preset is read when its turn comes, so an edit reaches the Phrases already waiting.
+- **The API key never leaves the sidecar.** The editors see the account's status, never the key; the key field is never filled in, and saving it blank keeps the stored one. No log line or error message may contain it: a reason is ElevenLabs' own message or `fetch`'s, never a request or its headers. Keep it that way in any new message.
+- **The ElevenLabs account is a display, not a gate.** `connected` follows the latest call to ElevenLabs — a refused key, a missing permission, spent credits or no network make it not connected; a rate limit, a missing voice or a refused text leave it — and nothing is refused because of it, nor checked on a timer. The account tells the editors only of a change: they look the voices up when told, and a failed list is asked for afresh, so being told of every call would call again and again. A call made with a key since replaced is ignored.
+- **The editors never wait for ElevenLabs.** It may take its whole timeout to answer, and the Plugin Editor would take that for a silent plugin: the status goes out with ElevenLabs' voices as they last settled (`Listing.settled`), and again once its look-up does. A failed ElevenLabs list is asked for afresh only when an editor opens or the key changes, never on every status.
 - **A Preset is never substituted.** A Speak names it by id with its name; one that is not here — deleted, unreadable, another computer's — drops the Phrase as `voice-missing`, and the store keeps a Default Preset that did not load rather than falling back to the OS's voice. The Default Preset cannot be deleted. Until one is picked, the OS's voice speaks at 1.0×.
 - **A Listen is out of a scenario's sight.** Its Phrase (`listen` holds the asking editor's id) waits as a Next one and Stop Speech reaches it, but the queue fires no Phrase Started or Phrase Finished for it and Speaking and Phrases Waiting leave it out. A Listen that cannot be heard is answered to its editor (`listen-failed`), not written to the log: it is not a viewer's lost Phrase.
 - **Speaking and Phrases Waiting are pulled** (`resolve: "query"`) and read the queue as it stands: a pushed value read right after a Speak would depend on whether the push had arrived.
