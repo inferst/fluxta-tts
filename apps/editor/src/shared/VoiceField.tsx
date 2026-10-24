@@ -5,7 +5,7 @@ import {
   SelectField,
   type SelectOption,
 } from "@fluxta/sdk/ui";
-import { useState, type ReactNode } from "react";
+import { useId, useState, type ReactNode } from "react";
 import { LISTEN_TEXT, type ListenSettings } from "tts-protocol";
 
 import { useListen } from "./useListen";
@@ -39,11 +39,14 @@ export function VoiceField({
 }: VoiceFieldProps) {
   const [text, setText] = useState(LISTEN_TEXT);
   const { listen, problem } = useListen(text, settings);
+  // The label sits on the outer Field, over the select and Listen alike: it
+  // names the select, which has no label of its own.
+  const id = useId();
 
   return (
-    <Field label={label} hint={hint} error={problem ?? error}>
+    <Field label={label} hint={hint} error={problem ?? error} htmlFor={id}>
       <div className="voice-field">
-        <SelectField {...select} />
+        <SelectField {...select} id={id} />
         <div className="with-listen">
           <Input
             value={text}

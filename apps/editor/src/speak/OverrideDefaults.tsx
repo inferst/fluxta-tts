@@ -1,4 +1,4 @@
-import { Button, NumberField, SelectField } from "@fluxta/sdk/ui";
+import { Button, NumberField, Section, SelectField } from "@fluxta/sdk/ui";
 import { useState } from "react";
 import {
   formatRate,
@@ -22,8 +22,12 @@ type Overrides = Pick<
   "voice" | "rate" | "volume" | "device" | "lengthLimit"
 >;
 
-/** The SelectField value of "Default": the override is absent. */
-const DEFAULT = "";
+/**
+ * The SelectField value of "Default": the override is absent. Not "": the
+ * select reads an empty value as nothing chosen and shows its placeholder,
+ * Choose one, over the Default option. No voice, rate or device has this id.
+ */
+const DEFAULT = "@default";
 
 type OverrideDefaultsProps = {
   values: SpeakSettings;
@@ -33,9 +37,10 @@ type OverrideDefaultsProps = {
 };
 
 /**
- * Speak's overrides of the Plugin Settings defaults, collapsed until opened —
- * open from the start when one is set, so it is never hidden. Each is
- * Default, which follows Plugin Settings, or its own value.
+ * Speak's overrides of the Plugin Settings defaults: a Section of their own,
+ * its fields hidden until it is opened — open from the start when one is
+ * set, so it is never hidden. Each is Default, which follows Plugin
+ * Settings, or its own value.
  */
 export function OverrideDefaults({
   values,
@@ -59,17 +64,20 @@ export function OverrideDefaults({
     shown === undefined ? "Default" : `Default — ${shown}`;
 
   return (
-    <div className="overrides">
-      <Button
-        variant="ghost"
-        size="sm"
-        aria-expanded={open}
-        onClick={() => setOpened(!open)}
-      >
-        {open ? "▾" : "▸"} Override defaults
-        {overridden > 0 ? ` (${overridden})` : ""}
-      </Button>
-
+    <Section
+      title={`Override defaults${overridden > 0 ? ` (${overridden})` : ""}`}
+      description="This Speak’s own voice, rate, volume, output device and length limit. Each one left at Default follows the plugin’s settings."
+      actions={
+        <Button
+          variant="outline"
+          size="sm"
+          aria-expanded={open}
+          onClick={() => setOpened(!open)}
+        >
+          {open ? "Hide" : "Show"}
+        </Button>
+      }
+    >
       {open && (
         <>
           <VoiceField
@@ -89,7 +97,9 @@ export function OverrideDefaults({
               })),
             ]}
             value={values.voice ?? DEFAULT}
-            onChange={(voice) => set("voice", voice || undefined)}
+            onChange={(voice) =>
+              set("voice", voice === DEFAULT ? undefined : voice)
+            }
             loading={!status}
             error={status?.voicesProblem}
             // The Overrides as they stand, unsaved; the sidecar lays them
@@ -172,6 +182,6 @@ export function OverrideDefaults({
           />
         </>
       )}
-    </div>
+    </Section>
   );
 }

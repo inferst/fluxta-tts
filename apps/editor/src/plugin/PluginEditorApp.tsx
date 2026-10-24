@@ -1,6 +1,7 @@
 import {
   EditorPage,
   PluginEditorLayout,
+  Section,
   SelectField,
   usePluginEditor,
 } from "@fluxta/sdk/ui";
@@ -93,12 +94,13 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
       defaults: { ...defaults, ...changes },
     });
 
+  // The layout pads the section itself: an EditorPage here would pad it
+  // twice.
   return (
-    <EditorPage>
-      <p className="hint">
-        How every Speak speaks unless it overrides it, under Override defaults.
-      </p>
-
+    <Section
+      title="Defaults"
+      description="How every Speak speaks unless it overrides it, under Override defaults."
+    >
       <VoiceField
         label="Default Voice"
         options={voices.map(({ id, label }) => ({ value: id, label }))}
@@ -152,6 +154,6 @@ function DefaultsForm({ status }: { status: PluginStatus }) {
         placeholder="No limit"
         hint="Longer text is cut at the last word within this many characters, and the rest is not spoken. An emoji counts as one. Empty: no limit."
       />
-    </EditorPage>
+    </Section>
   );
 }

@@ -1,10 +1,4 @@
-import {
-  Badge,
-  EditorPage,
-  EmptyState,
-  ListRow,
-  Section,
-} from "@fluxta/sdk/ui";
+import { Badge, EmptyState, ListRow, Section } from "@fluxta/sdk/ui";
 import { RECENT_PROBLEMS_KEPT, type RecentProblem } from "tts-protocol";
 
 /**
@@ -17,30 +11,25 @@ export function RecentProblems({
   problems: readonly RecentProblem[];
 }) {
   return (
-    <EditorPage>
-      <p className="hint">
-        Phrases that could not be spoken since the plugin started, newest first
-        — the last {RECENT_PROBLEMS_KEPT}. Each is in the plugin’s log too. A
-        restart of the plugin clears the list.
-      </p>
-
+    <Section
+      title="Recent problems"
+      description={`Phrases that could not be spoken since the plugin started, newest first — the last ${RECENT_PROBLEMS_KEPT}. Each is in the plugin’s log too. A restart of the plugin clears the list.`}
+    >
       {problems.length === 0 ? (
         <EmptyState>
           No Phrase has been dropped since the plugin started.
         </EmptyState>
       ) : (
-        <Section>
-          {problems.map(({ id, at, kind, reason, text }) => (
-            <ListRow
-              key={id}
-              title={reason}
-              badges={<Badge variant="outline">{kind}</Badge>}
-              description={text ? `${when(at)} · “${text}”` : when(at)}
-            />
-          ))}
-        </Section>
+        problems.map(({ id, at, kind, reason, text }) => (
+          <ListRow
+            key={id}
+            title={reason}
+            badges={<Badge variant="outline">{kind}</Badge>}
+            description={text ? `${when(at)} · “${text}”` : when(at)}
+          />
+        ))
       )}
-    </EditorPage>
+    </Section>
   );
 }
 
