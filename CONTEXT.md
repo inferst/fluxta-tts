@@ -20,8 +20,9 @@ One Speak's text as accepted into the Speech Queue: what is synthesized,
 spoken, cut off and dropped. A Phrase that cannot be spoken — its Preset or
 its Voice is not here, its text is empty, the engine fails — is dropped, and the queue
 moves on; nothing the user chose is substituted to save it. A failure that
-may pass (`transient`) before any sound is tried once more; one after the
-sound started cuts the Phrase off. No failure is remembered: the next Phrase
+may pass (`transient`) before any sound is tried once more — after the
+pause its Provider asks for, such as ElevenLabs' rate limit, at once
+otherwise; one after the sound started cuts the Phrase off. No failure is remembered: the next Phrase
 tries afresh.
 _Avoid_: utterance (an engine's word, `AVSpeechUtterance`), message (a chat
 message is the Platforms' word, and a deck button's Phrase is not one), sound

@@ -183,6 +183,8 @@ export class SpeechQueue {
    * Speaks `phrase`, trying once more after a `transient` failure — a
    * crashed engine starts afresh — but only while no sound has started: a
    * Phrase cut off mid-sound is not heard twice. A second failure drops it.
+   * The retry waits the pause its Provider asks for — a cloud service's rate
+   * limit — while the Phrase stays current, so Stop Speech still reaches it.
    */
   async #speak(
     phrase: Phrase,
@@ -199,6 +201,7 @@ export class SpeechQueue {
         if (signal.aborted || sound.started || !isTransient(error)) {
           throw error;
         }
+        await pause(retryAfterOf(error), signal);
         await this.#attempt(phrase, signal, sound);
       }
     } catch (error) {
@@ -262,6 +265,29 @@ function isTransient(error: unknown): boolean {
     (error instanceof ProviderError || error instanceof PlayerError) &&
     error.kind === "transient"
   );
+}
+
+/** How long a failure asks to wait before its retry: a Provider's, or none. */
+function retryAfterOf(error: unknown): number {
+  return error instanceof ProviderError ? (error.retryAfter ?? 0) : 0;
+}
+
+/** Waits `ms`, or rejects with the signal's reason once it is aborted. */
+function pause(ms: number, signal: AbortSignal): Promise<void> {
+  if (ms <= 0) {
+    return Promise.resolve();
+  }
+  return new Promise((resolve, reject) => {
+    const stop = () => {
+      clearTimeout(timer);
+      reject(signal.reason);
+    };
+    const timer = setTimeout(() => {
+      signal.removeEventListener("abort", stop);
+      resolve();
+    }, ms);
+    signal.addEventListener("abort", stop, { once: true });
+  });
 }
 
 /**

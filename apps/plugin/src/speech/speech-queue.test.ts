@@ -845,6 +845,43 @@ describe("A failure", () => {
     expect(events).toEqual(["started hello", "finished hello"]);
   });
 
+  it("is tried again after the pause its Provider asks for, not before", async () => {
+    const { queue, syntheses, dropped } = setup();
+    queue.enqueue(phrase("hello"));
+    await settle();
+
+    syntheses[0].fail(
+      new ProviderError("transient", "Too many requests", { retryAfter: 40 }),
+    );
+    await settle();
+    // Still current while it waits.
+    expect(syntheses).toHaveLength(1);
+    expect(queue.speaking).toBe(true);
+
+    await new Promise((resolve) => setTimeout(resolve, 50));
+    expect(syntheses.map(({ text }) => text)).toEqual(["hello", "hello"]);
+    expect(dropped).toEqual([]);
+  });
+
+  it("stopped while it waits for its retry, ends with neither Phrase Started nor Phrase Finished, and the queue moves on", async () => {
+    const { queue, syntheses, dropped, events } = setup();
+    queue.enqueue(phrase("hello"));
+    queue.enqueue(phrase("next"));
+    await settle();
+
+    syntheses[0].fail(
+      new ProviderError("transient", "Too many requests", {
+        retryAfter: 60_000,
+      }),
+    );
+    await settle();
+    queue.stopCurrent();
+    await settle();
+
+    expect(syntheses.map(({ text }) => text)).toEqual(["hello", "next"]);
+    expect([events, dropped]).toEqual([[], []]);
+  });
+
   it("of a play before its sound starts tries the whole Phrase again", async () => {
     const { queue, syntheses, plays, dropped, events } = setup();
     queue.enqueue(phrase("hello"));
