@@ -1,4 +1,4 @@
-import type { Engine, Reply } from "./jxa-process";
+import type { Engine, Reply } from "./script-process";
 
 /** An Engine the test answers by hand, recording what was sent. */
 export class FakeEngine implements Engine {

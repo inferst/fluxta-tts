@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { ProviderError } from "../../speech/provider";
 import { wavDuration } from "../../speech/wav";
-import { FakeEngine } from "./fake-engine";
+import { FakeEngine } from "../fake-engine";
 import { avSpeechRate, MacosProvider, plainText } from "./macos-provider";
 
 /** Float32 samples as the synthesizer sends them: base64 of their bytes. */
